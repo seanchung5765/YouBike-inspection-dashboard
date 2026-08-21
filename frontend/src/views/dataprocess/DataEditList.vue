@@ -35,30 +35,45 @@
       </div>
 
       <el-tabs v-model="activeTab" type="border-card" @tab-click="handleTabClick">
-        <el-tab-pane label="🏠 場站總覽 (Station View)" name="station">
+        <!-- ================================================== -->
+        <!-- 🏠 場站總覽 (Station View) -->
+        <!-- ================================================== -->
+        <el-tab-pane label="Station" name="station">
           <el-table :data="paginatedStationData" style="width: 100%" v-loading="loading" border stripe height="600" @selection-change="handleStationSelection">
             <el-table-column type="selection" width="50" fixed align="center" />
-            <el-table-column type="index" label="序號" width="60" fixed align="center" :index="(index) => (currentPageStation - 1) * pageSizeStation + index + 1" />
-            <el-table-column label="巡檢時間" prop="created_at" width="160" sortable fixed />
-            <el-table-column label="前台角色" prop="front_role" width="100" fixed />
-            <el-table-column label="工號" prop="checker" width="100" fixed sortable />
-            <el-table-column label="縣市" prop="city" width="80" fixed sortable />
-            <el-table-column label="場站名稱" prop="station_name" width="180" fixed show-overflow-tooltip sortable />
+            <el-table-column type="index" label="序號" width="70" fixed align="center" :index="(index) => (currentPageStation - 1) * pageSizeStation + index + 1" />
+            <el-table-column label="巡檢時間" prop="created_at" width="140" sortable fixed>
+              <template #default="scope">
+                {{ scope.row.created_at ? String(scope.row.created_at).substring(0, 10) : '' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="前台角色" prop="front_role" width="120" fixed />
+            <el-table-column label="工號" prop="checker" width="110" fixed sortable />
+            <el-table-column label="縣市" prop="city" width="110" fixed sortable align="center" />
+            <el-table-column label="場站名稱" prop="station_name" min-width="180" fixed show-overflow-tooltip sortable />
             
-            <el-table-column label="場站車輛數" width="110" align="center">
-              <template #default="scope"><el-input-number v-model="scope.row.bikes_in_dock_count" size="small" :min="0" :controls="false" style="width: 100%" @change="autoSaveStation(scope.row, 'bikes_in_dock_count', scope.row.bikes_in_dock_count)" /></template>
+            <el-table-column label="場站車輛數" width="130" align="center">
+              <template #default="scope">
+                <el-input-number v-model="scope.row.bikes_in_dock_count" size="small" :min="0" :controls="false" style="width: 100%" @change="autoSaveStation(scope.row, 'bikes_in_dock_count', scope.row.bikes_in_dock_count)" />
+              </template>
             </el-table-column>
             
-            <el-table-column label="座椅反轉" width="100" align="center">
-              <template #default="scope"><el-input-number v-model="scope.row.reversed_saddle_count" size="small" :min="0" :controls="false" style="width: 100%" @change="autoSaveStation(scope.row, 'reversed_saddle_count', scope.row.reversed_saddle_count)" /></template>
+            <el-table-column label="座椅反轉" width="130" align="center">
+              <template #default="scope">
+                <el-input-number v-model="scope.row.reversed_saddle_count" size="small" :min="0" :controls="false" style="width: 100%" @change="autoSaveStation(scope.row, 'reversed_saddle_count', scope.row.reversed_saddle_count)" />
+              </template>
             </el-table-column>
             
-            <el-table-column label="車機無法喚醒" width="120" align="center">
-              <template #default="scope"><el-input-number v-model="scope.row.inactive_bike_count" size="small" :min="0" :controls="false" style="width: 100%" @change="autoSaveStation(scope.row, 'inactive_bike_count', scope.row.inactive_bike_count)" /></template>
+            <el-table-column label="車機無法喚醒" width="170" align="center">
+              <template #default="scope">
+                <el-input-number v-model="scope.row.inactive_bike_count" size="small" :min="0" :controls="false" style="width: 100%" @change="autoSaveStation(scope.row, 'inactive_bike_count', scope.row.inactive_bike_count)" />
+              </template>
             </el-table-column>
 
-            <el-table-column label="場站備註說明" width="200">
-              <template #default="scope"><el-input v-model="scope.row.station_note" placeholder="輸入備註" @blur="autoSaveStation(scope.row, 'station_note', scope.row.station_note)" /></template>
+            <el-table-column label="場站備註說明" min-width="200">
+              <template #default="scope">
+                <el-input v-model="scope.row.station_note" placeholder="輸入備註" @blur="autoSaveStation(scope.row, 'station_note', scope.row.station_note)" />
+              </template>
             </el-table-column>
           </el-table>
 
@@ -73,56 +88,79 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="🚲 單車明細 (Bike View)" name="bike">
-          <el-table :data="paginatedBikeData" style="width: 100%" v-loading="loading" height="600" border stripe @selection-change="handleBikeSelection">
+        <!-- ================================================== -->
+        <!-- 🚲 單車明細 (Bike View) -->
+        <!-- ================================================== -->
+        <el-tab-pane label="Bike" name="bike">
+          <el-table :data="bikeData" style="width: 100%" v-loading="loading" height="600" border stripe @selection-change="handleBikeSelection">
             <el-table-column type="selection" width="50" fixed align="center" />
-            <el-table-column type="index" label="序號" width="60" fixed align="center" :index="(index) => (currentPageBike - 1) * pageSizeBike + index + 1" />
-            <el-table-column prop="formatted_created_at" label="測驗日期" width="160" fixed sortable />
-            <el-table-column prop="checker" label="評分人員" width="100" fixed sortable />
+            <el-table-column type="index" label="序號" width="70" fixed align="center" :index="(index) => (currentPageBike - 1) * pageSizeBike + index + 1" />
+            <el-table-column label="巡檢時間" prop="created_at" width="140" sortable fixed>
+              <template #default="scope">
+                {{ scope.row.created_at ? String(scope.row.created_at).substring(0, 10) : '' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="checker" label="評分人員" width="140" fixed sortable />
             <el-table-column prop="model" label="車種" width="80" fixed align="center" />
-            <el-table-column prop="station_name" label="場站名稱" width="180" fixed show-overflow-tooltip sortable />
-            <el-table-column prop="bike_no" label="車號" width="100" fixed align="center" sortable>
+            <el-table-column prop="station_name" label="場站名稱" min-width="180" fixed show-overflow-tooltip sortable />
+            <el-table-column prop="bike_no" label="車號" width="110" fixed align="center" sortable>
               <template #default="scope"><b>{{ scope.row.bike_no || '無' }}</b></template>
             </el-table-column>
             
+            <!-- 🌟 將 width 改為 min-width="120"，讓很長的表頭（如：外觀及環境_兩側貼紙）能完整顯示 -->
             <el-table-column 
               v-for="col in allBikeParts" 
               :key="col.prop" 
               :label="col.label" 
-              width="100" 
+              min-width="300" 
               align="center"
               show-overflow-tooltip
             >
               <template #default="scope">
-                <el-switch 
-                  v-model="scope.row[col.prop]" 
-                  :active-value="1" 
-                  :inactive-value="0" 
-                  @change="autoSaveBike(scope.row, col.prop, scope.row[col.prop])" 
+                <input 
+                  type="checkbox" 
+                  class="fast-checkbox"
+                  :checked="scope.row[col.prop] === 1" 
+                  @change="(e) => handleNativeCheckbox(scope.row, col.prop, e.target.checked)" 
                 />
               </template>
             </el-table-column>
 
-            <el-table-column label="前胎壓" width="90" align="center">
-              <template #default="scope"><el-input-number v-model="scope.row.front_tire_psi" size="small" :controls="false" style="width: 100%" @change="autoSaveBike(scope.row, 'front_tire_psi', scope.row.front_tire_psi)" /></template>
+            <el-table-column label="前胎壓" width="80" align="center">
+              <template #default="scope">
+                <input type="number" class="fast-input" v-model.lazy="scope.row.front_tire_psi" @change="autoSaveBike(scope.row, 'front_tire_psi', scope.row.front_tire_psi)" />
+              </template>
             </el-table-column>
-            <el-table-column label="後胎壓" width="90" align="center">
-              <template #default="scope"><el-input-number v-model="scope.row.rear_tire_psi" size="small" :controls="false" style="width: 100%" @change="autoSaveBike(scope.row, 'rear_tire_psi', scope.row.rear_tire_psi)" /></template>
+            <el-table-column label="後胎壓" width="80" align="center">
+              <template #default="scope">
+                <input type="number" class="fast-input" v-model.lazy="scope.row.rear_tire_psi" @change="autoSaveBike(scope.row, 'rear_tire_psi', scope.row.rear_tire_psi)" />
+              </template>
             </el-table-column>
 
-            <el-table-column label="車柱備註" width="150"><template #default="scope"><el-input v-model="scope.row.dock_note" @blur="autoSaveBike(scope.row, 'dock_note', scope.row.dock_note)" /></template></el-table-column>
-            <el-table-column label="外觀備註" width="150"><template #default="scope"><el-input v-model="scope.row.appearance_note" @blur="autoSaveBike(scope.row, 'appearance_note', scope.row.appearance_note)" /></template></el-table-column>
-            <el-table-column label="結構備註" width="150"><template #default="scope"><el-input v-model="scope.row.structure_note" @blur="autoSaveBike(scope.row, 'structure_note', scope.row.structure_note)" /></template></el-table-column>
-            <el-table-column label="其他備註" width="150"><template #default="scope"><el-input v-model="scope.row.other_note" @blur="autoSaveBike(scope.row, 'other_note', scope.row.other_note)" /></template></el-table-column>
+            <!-- 🌟 備註類因為內容長短不一，一律改用 min-width 讓它彈性伸縮 -->
+            <el-table-column label="車柱備註" min-width="160">
+              <template #default="scope"><input type="text" class="fast-input" v-model.lazy="scope.row.dock_note" @blur="autoSaveBike(scope.row, 'dock_note', scope.row.dock_note)" /></template>
+            </el-table-column>
+            <el-table-column label="外觀備註" min-width="160">
+              <template #default="scope"><input type="text" class="fast-input" v-model.lazy="scope.row.appearance_note" @blur="autoSaveBike(scope.row, 'appearance_note', scope.row.appearance_note)" /></template>
+            </el-table-column>
+            <el-table-column label="結構備註" min-width="160">
+              <template #default="scope"><input type="text" class="fast-input" v-model.lazy="scope.row.structure_note" @blur="autoSaveBike(scope.row, 'structure_note', scope.row.structure_note)" /></template>
+            </el-table-column>
+            <el-table-column label="其他備註" min-width="160">
+              <template #default="scope"><input type="text" class="fast-input" v-model.lazy="scope.row.other_note" @blur="autoSaveBike(scope.row, 'other_note', scope.row.other_note)" /></template>
+            </el-table-column>
           </el-table>
 
           <div style="margin-top: 15px; display: flex; justify-content: flex-end;">
             <el-pagination
               v-model:current-page="currentPageBike"
               v-model:page-size="pageSizeBike"
-              :page-sizes="[50, 100, 300, 500]"
+              :page-sizes="[20, 50, 100, 200]"
               layout="total, sizes, prev, pager, next, jumper"
-              :total="filteredBikeData.length"
+              :total="totalBikes"
+              @size-change="handleBikePageChange"
+              @current-change="handleBikePageChange"
             />
           </div>
         </el-tab-pane>
@@ -152,8 +190,17 @@ const selectedCity = ref('')
 const selectedChecker = ref('')
 
 const activeTab = ref('station')
+
+// 🏠 場站資料存放
 const rawTableData = ref([])
-const rawBikeData = ref([])
+const currentPageStation = ref(1)
+const pageSizeStation = ref(50)
+
+// 🚲 單車資料存放
+const bikeData = ref([])
+const totalBikes = ref(0)
+const currentPageBike = ref(1)
+const pageSizeBike = ref(50)
 
 const selectedStations = ref([])
 const selectedBikes = ref([])
@@ -162,11 +209,6 @@ const selectedCount = computed(() => activeTab.value === 'station' ? selectedSta
 
 const handleStationSelection = (val) => { selectedStations.value = val }
 const handleBikeSelection = (val) => { selectedBikes.value = val }
-
-const currentPageStation = ref(1)
-const pageSizeStation = ref(50)
-const currentPageBike = ref(1)
-const pageSizeBike = ref(50)
 
 // 🌟 動態欄位宣告
 const allBikeParts = ref([]) 
@@ -187,10 +229,15 @@ const fetchScoringRules = async () => {
   try {
     const res = await getScoringRulesAPI()
     if (res.data.success) {
-      const bikeRules = res.data.data.filter(rule => rule.major_category !== '場站')
+      // 🌟 修正點 1：過濾條件改成 large_category !== '場站'，確保跟 Excel 一樣有撈到「車柱」
+      // 🌟 修正點 2：補上 .sort()，依照你資料庫建好的 sort_order 排序
+      const bikeRules = res.data.data
+        .filter(rule => rule.large_category !== '場站')
+        .sort((a, b) => (a.sort_order - b.sort_order) || (a.id - b.id))
+        
       allBikeParts.value = bikeRules.map(rule => ({
         prop: rule.item_key,
-        label: `${rule.sub_category}_${rule.item_name}` 
+        label: `${rule.large_category}_${rule.sub_category}_${rule.item_name}` 
       }))
     }
   } catch (error) {
@@ -211,27 +258,42 @@ const fetchBikeData = async () => {
   if (!selectedMonth.value) return;
   loading.value = true
   try {
-    const res = await getFlatBikesAPI(selectedMonth.value, selectedCity.value, selectedChecker.value)
-    if (res.data.success) rawBikeData.value = res.data.data
+    const res = await getFlatBikesAPI(
+      selectedMonth.value, 
+      selectedCity.value, 
+      selectedChecker.value,
+      currentPageBike.value,
+      pageSizeBike.value
+    )
+    if (res.data.success) {
+      bikeData.value = res.data.data
+      totalBikes.value = res.data.total
+    }
   } finally { loading.value = false }
 }
 
+const handleBikePageChange = () => {
+  fetchBikeData()
+}
+
 const handleTabClick = (tab) => {
-  if (tab.paneName === 'bike' && rawBikeData.value.length === 0) fetchBikeData()
+  if (tab.paneName === 'bike' && bikeData.value.length === 0) fetchBikeData()
 }
 
 watch([selectedMonth, selectedCity, selectedChecker], () => {
   currentPageStation.value = 1
   currentPageBike.value = 1
   fetchData()
-  if (activeTab.value === 'bike') fetchBikeData()
-  else rawBikeData.value = []
+  if (activeTab.value === 'bike') {
+    fetchBikeData()
+  } else {
+    bikeData.value = []
+    totalBikes.value = 0
+  }
 })
 
 const filteredTableData = computed(() => rawTableData.value.filter(item => selectedCity.value === '' || item.city === selectedCity.value))
-const filteredBikeData = computed(() => rawBikeData.value.filter(item => selectedCity.value === '' || item.city === selectedCity.value))
 const paginatedStationData = computed(() => filteredTableData.value.slice((currentPageStation.value - 1) * pageSizeStation.value, currentPageStation.value * pageSizeStation.value))
-const paginatedBikeData = computed(() => filteredBikeData.value.slice((currentPageBike.value - 1) * pageSizeBike.value, currentPageBike.value * pageSizeBike.value))
 
 const autoSaveStation = async (row, field, value) => {
   try {
@@ -245,6 +307,12 @@ const autoSaveBike = async (row, field, value) => {
     await updateBikeCellAPI({ id: row.id, field, value })
     ElMessage.success('儲存成功')
   } catch (error) { ElMessage.error('儲存失敗') }
+}
+
+const handleNativeCheckbox = (row, field, isChecked) => {
+  const val = isChecked ? 1 : 0;
+  row[field] = val; 
+  autoSaveBike(row, field, val); 
 }
 
 const executeBatchDelete = () => {
@@ -278,4 +346,41 @@ onMounted(() => {
 .filter-item { display: flex; align-items: center; gap: 10px; }
 .filter-label { font-weight: bold; font-size: 16px; }
 :deep(.el-tabs__content) { padding: 15px 0 0 0; }
+
+
+.fast-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #409EFF; 
+  margin: 0;
+  vertical-align: middle;
+}
+
+.fast-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  color: #606266;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s cubic-bezier(.645,.045,.355,1);
+  background-color: #fff;
+}
+
+.fast-input:focus {
+  border-color: #409EFF;
+}
+
+.fast-input:hover {
+  border-color: #c0c4cc;
+}
+
+.fast-input[type=number]::-webkit-inner-spin-button, 
+.fast-input[type=number]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
 </style>

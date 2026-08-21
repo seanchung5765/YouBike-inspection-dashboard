@@ -24,11 +24,14 @@
 
       <el-row :gutter="20" class="table-row">
         
+        <!-- A 級 -->
         <el-col :span="24" style="margin-bottom: 20px;">
           <div class="level-title bg-a">重大問題(安全) A級</div>
           <el-table :data="issueData.A" border stripe size="small" :cell-class-name="cellStyleHandler" style="width: 100%">
             <el-table-column prop="major_category" label="分類" width="200" align="center" />
-            <el-table-column prop="sub_category" label="位置" width="200" align="center" />
+            <el-table-column prop="sub_category" label="位置" width="180" align="center" />
+            <!-- 🌟 新增車種欄位 -->
+            <el-table-column prop="bike_type" label="車種" width="80" align="center" />
             <el-table-column prop="item_name" label="缺失項目" min-width="250" />
             <el-table-column prop="fail_count" label="異常件數" width="90" align="center" />
             <el-table-column prop="fail_rate" label="異常率" width="80" align="center">
@@ -37,11 +40,14 @@
           </el-table>
         </el-col>
 
+        <!-- B 級 -->
         <el-col :span="24" style="margin-bottom: 20px;">
           <div class="level-title bg-b">重點問題(觀感) B級</div>
           <el-table :data="issueData.B" border stripe size="small" :cell-class-name="cellStyleHandler" style="width: 100%">
             <el-table-column prop="major_category" label="分類" width="200" align="center" />
-            <el-table-column prop="sub_category" label="位置" width="200" align="center" />
+            <el-table-column prop="sub_category" label="位置" width="180" align="center" />
+            <!-- 🌟 新增車種欄位 -->
+            <el-table-column prop="bike_type" label="車種" width="80" align="center" />
             <el-table-column prop="item_name" label="缺失項目" min-width="250" />
             <el-table-column prop="fail_count" label="異常件數" width="90" align="center" />
             <el-table-column prop="fail_rate" label="異常率" width="80" align="center">
@@ -50,11 +56,14 @@
           </el-table>
         </el-col>
 
+        <!-- C 級 -->
         <el-col :span="24" style="margin-bottom: 10px;">
           <div class="level-title bg-c">一般問題(內部管理) C級</div>
           <el-table :data="issueData.C" border stripe size="small" :cell-class-name="cellStyleHandler" style="width: 100%">
             <el-table-column prop="major_category" label="分類" width="200" align="center" />
-            <el-table-column prop="sub_category" label="位置" width="200" align="center" />
+            <el-table-column prop="sub_category" label="位置" width="180" align="center" />
+            <!-- 🌟 新增車種欄位 -->
+            <el-table-column prop="bike_type" label="車種" width="80" align="center" />
             <el-table-column prop="item_name" label="缺失項目" min-width="250" />
             <el-table-column prop="fail_count" label="異常件數" width="90" align="center" />
             <el-table-column prop="fail_rate" label="異常率" width="80" align="center">
@@ -128,8 +137,14 @@ const fetchData = async () => {
 }
 
 const cellStyleHandler = ({ row, column }) => {
-  if (column.property === 'fail_rate' && row.fail_rate > 20) return 'color: red; font-weight: bold;';
-  if (column.property === 'fail_count' && row.fail_count >= 5) return 'background-color: #ffe6e6; font-weight: bold; color: red;';
+  // 異常率 > 20% 給予 'highlight-red-text' 類別
+  if (column.property === 'fail_rate' && row.fail_rate > 20) {
+    return 'highlight-red-text';
+  }
+  // 異常件數 >= 5 給予 'highlight-danger-bg' 類別
+  if (column.property === 'fail_count' && row.fail_count >= 5) {
+    return 'highlight-danger-bg';
+  }
   return '';
 }
 
@@ -147,6 +162,18 @@ h2 { margin: 0; }
 .bg-b { background-color: #fce5cd; }
 .bg-c { background-color: #fff2cc; }
 :deep(.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell) { background-color: #f2f4f7 !important; }
+
+/* 🌟 新增：缺失統計表的異常警告樣式 */
+:deep(.highlight-red-text) {
+  color: red !important;
+  font-weight: bold !important;
+}
+
+:deep(.highlight-danger-bg) {
+
+  color: red !important;
+  font-weight: bold !important;
+}
 
 .mobile-header {
   display: flex; 

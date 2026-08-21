@@ -37,7 +37,7 @@ router.get('/stations', async (req, res) => {
       SELECT 
         m.station_id, m.station_name, m.city, m.created_by AS checker, 
         IF(fr.name = '無角色' OR fr.name IS NULL, '', fr.name) AS front_role, 
-        DATE_FORMAT(DATE_ADD(MAX(m.created_at), INTERVAL 8 HOUR), '%Y-%m-%d %H:%i:%s') AS created_at, 
+        DATE_FORMAT(MAX(m.created_at), '%Y-%m-%d %H:%i:%s') AS created_at,
         
         MAX(m.bikes_in_dock_count) AS bikes_in_dock_count,
         MAX(m.reversed_saddle_count) AS reversed_saddle_count,
@@ -64,24 +64,34 @@ router.get('/stations', async (req, res) => {
 });
 
 // ============================================================================
-// 📄 GET /api/data-process/flat-bikes (單車明細 - 完美對接新表)
+// 📄 GET /api/data-process/flat-bikes (單車明細 - 🌟 後端分頁優化版)
 // ============================================================================
 router.get('/flat-bikes', async (req, res) => {
-  const { month, city, checker } = req.query;
+  // 🌟 1. 接收前端傳來的 page(頁碼) 與 limit(每頁筆數)，預設為第1頁、50筆
+  const { month, city, checker, page = 1, limit = 50 } = req.query;
   if (!month) return res.status(400).json({ success: false, message: '缺少月份參數' });
 
   try {
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const limitValue = parseInt(limit);
+
+    // 🌟 2. 第一句 SQL：先算出符合條件的「總筆數」，給前端分頁器使用
+    let countSql = `SELECT COUNT(*) as total FROM copied_inspections m WHERE m.report_month = ?`;
+    let countParams = [month];
+    if (city) { countSql += ` AND m.city = ?`; countParams.push(city); }
+    if (checker && checker !== 'ALL') { countSql += ` AND m.created_by = ?`; countParams.push(checker); }
+    const [[{ total }]] = await db.query(countSql, countParams);
+
+    // 🌟 3. 第二句 SQL：只撈出當下那 50 筆資料
     let sql = `
       SELECT 
         m.*, 
         m.created_by AS checker, 
         IF(fr.name = '無角色' OR fr.name IS NULL, '', fr.name) AS front_role, 
         m.model, 
-        DATE_FORMAT(DATE_ADD(m.check_date, INTERVAL 8 HOUR), '%Y-%m-%d') AS formatted_check_date,
-        DATE_FORMAT(DATE_ADD(m.created_at, INTERVAL 8 HOUR), '%Y/%m/%d %H:%i:%s') AS formatted_created_at,
-        -- 🌟 保持動態抓取真實照片數，確保 Excel 產出絕對精準
+        DATE_FORMAT(m.check_date, '%Y-%m-%d') AS formatted_check_date,
+        DATE_FORMAT(m.created_at, '%Y/%m/%d %H:%i:%s') AS formatted_created_at,
         (SELECT COUNT(*) FROM \`youbike_inspector\`.\`inspection_photos\` p WHERE p.inspection_id = m.id) AS photo_count
-        
       FROM copied_inspections m
       LEFT JOIN users u ON m.created_by = u.emp_id 
       LEFT JOIN front_roles fr ON u.front_role_id = fr.id
@@ -92,9 +102,14 @@ router.get('/flat-bikes', async (req, res) => {
     if (city) { sql += ` AND m.city = ?`; params.push(city); }
     if (checker && checker !== 'ALL') { sql += ` AND m.created_by = ?`; params.push(checker); }
     
-    sql += ` ORDER BY m.created_at DESC, m.station_name ASC, m.bike_no ASC`;
+    // 加入 LIMIT 與 OFFSET 限制回傳數量
+    sql += ` ORDER BY m.created_at DESC, m.station_name ASC, m.bike_no ASC LIMIT ? OFFSET ?`;
+    params.push(limitValue, offset);
+    
     const [rows] = await db.query(sql, params);
-    res.json({ success: true, data: rows });
+    
+    // 🌟 4. 將 total 一併回傳
+    res.json({ success: true, data: rows, total });
   } catch (error) {
     res.status(500).json({ success: false, message: '伺服器發生錯誤' });
   }
@@ -116,7 +131,7 @@ router.put('/batch-reset', async (req, res) => {
     // 自行車外觀
     'sticker_missing', 'sticker_unreadable', 'sticker_old_not_removed', 'fee_sticker_missing', 'fee_sticker_broken', 'headunit_dirty', 'headunit_broken', 'headunit_bubble', 'basket_sticker_front', 'basket_sticker_back', 'basket_dirty', 'basket_garbage', 'basket_broken', 'basket_wire_broken', 'grip_sticker_left', 'grip_sticker_right', 'grip_worn', 'grip_dirty', 'grip_right_broken', 'bell_missing_silent', 'bell_sticker_issue', 'frame_dirty', 'frame_paint_peeling', 'fender_dirty_broken', 'fender_broken', 'rear_fender_ad', 'rear_fender_logo', 'rear_fender_bike_no', 'fender_transparent_film', 'rear_fender_battery', 'seatclamp_sticker_issue', 'saddle_surface_broken', 'saddle_dirty', 'axle_bolt_front', 'axle_bolt_rear', 'housing_tube', 'housing_brake', 'housing_gear', 'lock_sticker_issue', 'lock_rust_10', 'sticker_city_logo', 'sticker_bike_number', 'sticker_youbike_logo', 'structure_black_tube',
     // 自行車機能
-    'battery_appearance_blank', 'battery_low', 'battery_no_display', 'headunit_unlock_fail', 'headunit_rent_issue', 'headunit_screen_issue', 'headunit_sound_issue', 'headunit_other_note', 'spring_missing', 'kickstand_missing', 'kickstand_deformed', 'frame_head_crooked', 'frame_head_stuck', 'seatpost_reverse_unfixed', 'seatpost_reverse_wrong_pos', 'seatpost_wobble', 'seatpost_separated', 'seatpost_scale_blur', 'saddle_crooked', 'saddle_loose', 'saddle_broken_base', 'seatpost_locked', 'seatpost_slip', 'seatpost_stuck', 'seatpost_lever_broken', 'tire_worn', 'tire_rim_deformed', 'tire_wobble', 'lights_moving_front', 'lights_moving_rear', 'lights_stationary_not_lit', 'lights_stationary_not_off', 'lights_stationary_flicker', 'lights_reflector_broken', 'brake_fail', 'brake_loose', 'brake_tight', 'brake_noise', 'gear_silver_cap_missing', 'gear_black_cap_missing', 'gear_stuck', 'gear_slip', 'gear_fail', 'lock_fail', 'ride_unsmooth', 'chain_noise', 'ride_noise', 'pedal_missing', 'pedal_deformed',
+    'battery_appearance_blank', 'battery_low', 'battery_no_display', 'headunit_unlock_fail', 'headunit_rent_issue', 'headunit_screen_issue', 'headunit_sound_issue', 'headunit_other_note', 'spring_missing', 'kickstand_missing', 'kickstand_deformed', 'frame_head_crooked', 'frame_head_stuck', 'seatpost_reverse_unfixed', 'seatpost_reverse_wrong_pos', 'seatpost_wobble', 'seatpost_separated', 'seatpost_scale_blur', 'saddle_crooked', 'saddle_loose', 'saddle_broken_base', 'seatpost_locked', 'seatpost_slip', 'seatpost_stuck', 'seatpost_lever_broken', 'tire_worn', 'tire_rim_deformed', 'tire_wobble', 'lights_moving_front', 'lights_moving_rear', 'lights_stationary_not_lit', 'lights_stationary_not_off', 'lights_stationary_flicker', 'lights_reflector_broken', 'brake_fail', 'brake_loose', 'brake_tight', 'brake_noise', 'gear_silver_cap_missing', 'gear_black_cap_missing', 'gear_stuck', 'gear_slip', 'gear_fail', 'lock_fail', 'ride_unsmooth', 'chain_noise', 'ride_noise', 'pedal_missing', 'pedal_deformed','tire_pressure_too_low', 'tire_pressure_too_high', 'tire_pressure_slightly_high',
     // 電輔車
     'ebike_no_power', 'ebike_power_when_stopped', 'ebike_no_speed_sensor', 'ebike_speed_display_issue', 'ebike_speed_not_zero'
   ];
@@ -226,21 +241,32 @@ router.post('/batch-update-bikes', async (req, res) => {
 
     // 3. 🏠 更新場站 (也是 UPDATE)
     if (isFirstChunk && Array.isArray(stationUpdates) && stationUpdates.length > 0) {
-      for (const st of stationUpdates) {
-        const { station_id, ...fields } = st;
-        if (!station_id) continue;
+      const stationPromises = stationUpdates.map(st => {
+        // 🌟 徹底拔除 created_at！我們只用 month, station_name, created_by 就能 100% 命中資料庫
+        const { station_name, created_by, created_at, city, ...fields } = st; 
+        
+        if (!station_name) return Promise.resolve();
         
         const keys = Object.keys(fields);
-        if (keys.length === 0) continue;
+        if (keys.length === 0) return Promise.resolve();
         
         const setClause = keys.map(k => `\`${k}\` = ?`).join(', ');
         const values = Object.values(fields);
 
-        await connection.query(
-          `UPDATE copied_inspections SET ${setClause} WHERE report_month = ? AND station_id = ?`,
-          [...values, month, station_id]
-        );
-      }
+        // 基本條件：月份與場站名稱
+        let sql = `UPDATE copied_inspections SET ${setClause} WHERE report_month = ? AND station_name = ?`;
+        let queryParams = [...values, month, station_name];
+
+        // 進階條件：如果有工號，就加上工號比對確保安全
+        if (created_by && created_by !== '') {
+          sql += ` AND created_by = ?`;
+          queryParams.push(created_by);
+        }
+
+        return connection.query(sql, queryParams);
+      });
+      // 🚀 使用 Promise.all 平行處理，瞬間完成！
+      await Promise.all(stationPromises); 
     }
 
     await connection.commit();

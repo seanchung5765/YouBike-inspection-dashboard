@@ -143,6 +143,17 @@ onUnmounted(() => {
 .header-container { display: flex; justify-content: space-between; align-items: center; }
 .search-bar { display: flex; align-items: center; }
 .mobile-search-input { width: 300px; margin-right: 10px; }
+/* 🌟 強制 Element Plus 的標籤與按鈕跟隨全站字體縮放 */
+:deep(.el-tag),
+:deep(.el-button) {
+  font-size: 1em;
+}
+
+/* 針對 size="small" 的元件微調比例 */
+:deep(.el-tag.el-tag--small),
+:deep(.el-button.el-button--small) {
+  font-size: 0.85em; 
+}
 
 /* 📱 手機版排版 */
 @media (max-width: 768px) {

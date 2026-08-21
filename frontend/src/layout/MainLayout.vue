@@ -128,7 +128,7 @@ const applyFontZoom = (scale) => {
   root.style.setProperty('--el-font-size-base', `${14 * scale}px`) 
   root.style.setProperty('--el-font-size-medium', `${16 * scale}px`)
   root.style.setProperty('--el-font-size-large', `${18 * scale}px`)
-  root.style.setProperty('--el-font-size-extra-large', `${20 * scale}px`)
+  root.style.setProperty('--el-font-size-extra-large', `${20* scale}px`)
   document.body.style.fontSize = `${14 * scale}px`
 }
 

@@ -44,7 +44,7 @@ router.get('/photos/:id', async (req, res) => {
       const [signedUrl] = await file.getSignedUrl({
         version: 'v4',
         action: 'read',
-        expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        expires: Date.now() + 5 * 24 * 60 * 60 * 1000,
       });
       return {
         name: file.name.split('/').pop(), 

@@ -121,7 +121,19 @@ onUnmounted(() => {
 <style scoped>
 .header-container { display: flex; justify-content: space-between; align-items: center; }
 .region-tag { margin-right: 5px; margin-bottom: 5px; }
-.text-gray { color: #909399; font-size: 12px; }
+.text-gray { color: #909399; font-size: 0.85em; }
+
+/* 🌟 強制 Element Plus 的標籤與按鈕跟隨全站字體縮放 */
+:deep(.el-tag),
+:deep(.el-button) {
+  font-size: 1em;
+}
+
+/* 針對 size="small" 的元件微調比例 */
+:deep(.el-tag.el-tag--small),
+:deep(.el-button.el-button--small) {
+  font-size: 0.85em; 
+}
 
 /* 📱 手機版排版 */
 @media (max-width: 768px) {
@@ -130,6 +142,6 @@ onUnmounted(() => {
   .mobile-full-btn { width: 100%; margin-left: 0; }
   :deep(.el-card__header) { padding: 12px; font-weight: bold; }
   :deep(.el-card__body) { padding: 8px; }
-  :deep(.el-table .cell) { padding: 0 5px; font-size: 13px; }
+  :deep(.el-table .cell) { padding: 0 5px; font-size: 0.9em; }
 }
 </style>

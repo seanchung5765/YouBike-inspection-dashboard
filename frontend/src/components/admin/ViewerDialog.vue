@@ -3,7 +3,7 @@
     <el-form :model="formData" :label-position="isMobile ? 'top' : 'right'" :label-width="isMobile ? 'auto' : '80px'">
       
       <el-form-item label="人員" v-if="!isEdit">
-        <el-select v-model="formData.emp_id" filterable remote reserve-keyword placeholder="輸入關鍵字搜尋 LDAP" :remote-method="searchLdap" :loading="searching" @change="handleUserSelect" style="width: 100%">
+        <el-select v-model="formData.emp_id" filterable remote reserve-keyword placeholder="請輸入工號或姓名" :remote-method="searchLdap" :loading="searching" @change="handleUserSelect" style="width: 100%">
           <el-option v-for="item in userOptions" :key="item.emp_id" :label="`${item.name} (${item.emp_id}) - ${item.department || '無單位'}`" :value="item.emp_id" />
         </el-select>
       </el-form-item>

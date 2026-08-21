@@ -10,7 +10,7 @@ const request = axios.create({
   // baseURL 會自動加在每支 API 網址前面
   // 請確認你的 vite.config.js 代理設定是不是走 '/api'
   baseURL: apiBaseURL,
-  timeout: 10000 // 逾時時間設定 10 秒
+  timeout: 60000 // 逾時時間設定 10 秒
 })
 
 // 2. 🚀 請求攔截器 (Request Interceptor) - 發送 API 之前的「海關」
@@ -43,15 +43,12 @@ request.interceptors.response.use(
     if (error.response) {
       switch (error.response.status) {
         case 401: // Unauthorized (Token 過期或未帶 Token)
-          ElMessage.error('登入已過期或權限不足，請重新登入')
           localStorage.removeItem('user') // 清除失效的帳號狀態
           router.push('/login') // 強制踢回登入頁面
           break
         case 403: // Forbidden (沒權限)
-          ElMessage.error('您沒有權限執行此操作')
           break
         case 500: // Internal Server Error (後端當機)
-          ElMessage.error('伺服器發生錯誤，請稍後再試')
           break
         default:
           // 其他錯誤，顯示後端回傳的錯誤訊息

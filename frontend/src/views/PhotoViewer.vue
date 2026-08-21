@@ -3,7 +3,7 @@
     
     <!-- 🌟 頂部資訊區：加入車號與日期 -->
     <div class="header">
-      <h2>📸 巡檢佐證照片</h2>
+      <h2>📸 巡檢照片</h2>
       <div class="info-tags" v-if="bikeNo || checkDate">
         <el-tag size="large" type="primary" effect="dark" class="info-tag">
           <el-icon style="margin-right: 5px;"><Bicycle /></el-icon> 車號：{{ bikeNo }}

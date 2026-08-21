@@ -29,10 +29,10 @@ export const deleteStationDataAPI = (month, stationId) => {
   return request.delete(`/data-process/stations/${month}/${stationId}`)
 }
 
-// 🌟 修正：撈取 Excel 模式的單車平鋪資料 (加入 checker 參數，讓評分人員篩選生效)
-export const getFlatBikesAPI = (month, city, checker) => {
+// 🌟 修正：撈取 Excel 模式的單車平鋪資料 (加入 page, limit 參數)
+export const getFlatBikesAPI = (month, city, checker, page = 1, limit = 50) => {
   return request.get('/data-process/flat-bikes', {
-    params: { month, city, checker }
+    params: { month, city, checker, page, limit }
   })
 }
 
