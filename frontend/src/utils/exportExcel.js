@@ -21,7 +21,8 @@ const hardcodedStationKeys = [
   'station_clean_garbage', 'station_clean_leaves'
 ];
 
-export const exportMonthDataToExcel = async (month) => {
+// 🌟 新增 status 參數
+export const exportMonthDataToExcel = async (month, status) => {
   const loadingInstance = ElLoading.service({
     lock:       true,
     text:       `正在撈取 ${month} 的資料並產生 Excel，請稍候...`,
@@ -48,6 +49,9 @@ export const exportMonthDataToExcel = async (month) => {
 
     const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
     const isHighLevelAdmin = userInfo.role_level && parseInt(userInfo.role_level) >= 90;
+    
+    // 🌟 判斷這份報表是否已發布
+    const isPublished = (status === 'published');
 
     // ==========================================
     // 🏠 1. Station 分頁 
@@ -73,7 +77,11 @@ export const exportMonthDataToExcel = async (month) => {
         V(item.station_clean_garbage) ? '[人為廢棄物]' : '',
         V(item.station_clean_leaves)  ? '[落葉雜草或軟爛果實]' : ''
       ].filter(Boolean).join(' ');
-      rowObj['場站備註說明'] = item.station_note;
+
+      // 🌟 權限控管：只有發布後，才把備註加入 Excel 欄位
+      if (isPublished) {
+        rowObj['場站備註說明'] = item.station_note;
+      }
 
       return rowObj;
     })
@@ -108,21 +116,24 @@ export const exportMonthDataToExcel = async (month) => {
         rowObj[headerName] = V(item[rule.item_key]);
       })
 
-      // 🌟 關鍵修正：若未填寫胎壓，匯出為空字串，防止被轉為 0 造成誤判
-      rowObj['前胎壓']         = item.front_tire_psi !== null && item.front_tire_psi !== undefined ? item.front_tire_psi : '';
-      rowObj['後胎壓']         = item.rear_tire_psi !== null && item.rear_tire_psi !== undefined ? item.rear_tire_psi : '';
+      rowObj['前胎壓'] = item.front_tire_psi !== null && item.front_tire_psi !== undefined ? item.front_tire_psi : '';
+      rowObj['後胎壓'] = item.rear_tire_psi !== null && item.rear_tire_psi !== undefined ? item.rear_tire_psi : '';
       
-      rowObj['其他備註']       = item.other_note || '';
-      rowObj['車柱備註']       = item.dock_note || '';
-      rowObj['外觀備註']       = item.appearance_note || '';
-      rowObj['結構備註']       = item.structure_note || '';
-      rowObj['Id']             = item.id || '';
+      // 🌟 權限控管：只有發布後，才把這 4 個備註加入 Excel 欄位
+      if (isPublished) {
+        rowObj['其他備註']       = item.other_note || '';
+        rowObj['車柱備註']       = item.dock_note || '';
+        rowObj['外觀備註']       = item.appearance_note || '';
+        rowObj['結構備註']       = item.structure_note || '';
+      }
+
+      rowObj['Id'] = item.id || '';
 
       return rowObj;
     })
 
     // ==========================================
-    // 📦 SheetJS 匯出與雙層表頭處理
+    // 📦 SheetJS 匯出與雙層表頭處理 (此段維持不變)
     // ==========================================
     const wb = XLSX.utils.book_new()
     

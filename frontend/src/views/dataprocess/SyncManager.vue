@@ -43,7 +43,7 @@
           <div style="display: flex; justify-content: flex-end; gap: 10px;">
             
             <!-- 🌟 新增 v-if="isAdmin" -->
-            <el-button 
+            <!--<el-button 
               v-if="isAdmin"
               type="success" link
               :disabled="scope.row.status === 'published' || syncTarget !== null"
@@ -51,9 +51,9 @@
             >
               <el-icon v-if="syncTarget === scope.row.report_month" class="is-loading" style="margin-right: 5px;"><Refresh /></el-icon>
               {{ syncTarget === scope.row.report_month ? '資料載入中...' : '從模擬體驗載入資料' }}
-            </el-button>
+            </el-button>-->
             <!-- 🌟 大家都看得到匯出 Excel，不需要 v-if -->
-            <el-button type="info" link @click="handleExport(scope.row.report_month)" :disabled="syncTarget !== null">
+            <el-button type="info" link @click="handleExport(scope.row.report_month, scope.row.status)" :disabled="syncTarget !== null">
               <el-icon><Download style="margin-right: 5px;"/></el-icon> 匯出 Excel
             </el-button>
 
@@ -111,13 +111,8 @@ const isAdmin = computed(() => currentUser.role_level >= 90);
 
 // 🌟 2. 依照權限過濾表格資料
 const displayTableData = computed(() => {
-  if (isAdmin.value) {
-    return tableData.value; // 管理員看全部
-  }
-  // 非管理員只看已發布
-  return tableData.value.filter(row => row.status === 'published');
+  return tableData.value; 
 });
-
 const fetchList = async () => {
   loading.value = true
   try {
@@ -140,7 +135,9 @@ const formatDateTime = (dateStr) => {
   return `${yyyy}-${mm}-${dd} ${hh}:${mins}`;
 }
 
-const handleExport = (month) => exportMonthDataToExcel(month)
+const handleExport = (month, status) => {
+  exportMonthDataToExcel(month, status);
+}
 
 const handleSync = async (row) => {
   const month = row.report_month
