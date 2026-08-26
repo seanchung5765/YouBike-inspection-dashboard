@@ -346,7 +346,11 @@ router.get('/list', async (req, res) => {
   try {
     const last6Months = generateLast6Months(); 
     const [dbRecords] = await db.query(`
-      SELECT report_month, status, imported_at, imported_by, last_sync_time 
+      SELECT report_month, status, imported_at, imported_by, 
+      
+      -- 🌟 關鍵修改：直接在資料庫層級把 +8 小時算好，並轉成字串，這樣地端跟雲端就不會各自解讀錯誤了！
+      DATE_FORMAT(DATE_ADD(last_sync_time, INTERVAL 8 HOUR), '%Y-%m-%d %H:%i:%s') AS last_sync_time 
+      
       FROM monthly_reports 
       WHERE report_month IN (?)
     `, [last6Months]);

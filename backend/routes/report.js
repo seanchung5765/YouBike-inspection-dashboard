@@ -56,12 +56,12 @@ const calculateMonthlyScores = async (month) => {
     const sumMaxFunction = maxDeductionMap['自行車重要機能'];
     const sumMaxTotal = sumMaxStation + sumMaxAppearance + sumMaxFunction;
 
-    console.log(`==== 基準分母校對 ====`);
-    console.log(`場站基準 (sumMaxStation): ${sumMaxStation}`);
-    console.log(`外觀基準 (sumMaxAppearance): ${sumMaxAppearance}`);
-    console.log(`機能基準 (sumMaxFunction): ${sumMaxFunction}`);
-    console.log(`系統總基準 (sumMaxTotal): ${sumMaxTotal}`);
-    console.log(`======================`);
+    //console.log(`==== 基準分母校對 ====`);
+    //console.log(`場站基準 (sumMaxStation): ${sumMaxStation}`);
+    //console.log(`外觀基準 (sumMaxAppearance): ${sumMaxAppearance}`);
+    //console.log(`機能基準 (sumMaxFunction): ${sumMaxFunction}`);
+    //console.log(`系統總基準 (sumMaxTotal): ${sumMaxTotal}`);
+    //console.log(`======================`);
 
     // 3. 準備各縣市與大區的統計容器
     const [regionRows] = await db.query(`SELECT r.name AS city_name, rg.name AS group_name FROM regions r LEFT JOIN report_groups rg ON r.report_group_id = rg.id`);
@@ -262,14 +262,12 @@ const calculateMonthlyScores = async (month) => {
         return calcTo4(finalVal); // 到最後一步再截斷
       };
 
-      // 👇👇👇 請在這裡加入這段 console.log 👇👇👇
-      console.log(`\n==== [${groupName}] 扣分明細對帳單 ====`);
-      console.log(`總測驗車輛數 (N): ${stat.total_bikes}`);
-      console.log(`場站總扣分 (Ds): ${stat.raw_station_deduction}`);
-      console.log(`外觀總扣分 (Ds): ${stat.raw_appearance_deduction}`);
-      console.log(`機能總扣分 (Ds): ${stat.raw_function_deduction}`);
-      console.log(`===================================`);
-      // 👆👆👆 加入結束 👆👆👆
+      //console.log(`\n==== [${groupName}] 扣分明細對帳單 ====`);
+      //console.log(`總測驗車輛數 (N): ${stat.total_bikes}`);
+      //console.log(`場站總扣分 (Ds): ${stat.raw_station_deduction}`);
+      //console.log(`外觀總扣分 (Ds): ${stat.raw_appearance_deduction}`);
+      //console.log(`機能總扣分 (Ds): ${stat.raw_function_deduction}`);
+
 
       // 計算三大類別分數
       const score_station = calculateYourFormula(sumMaxStation, stat.raw_station_deduction, stat.total_bikes);

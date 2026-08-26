@@ -37,7 +37,7 @@ router.get('/stations', async (req, res) => {
       SELECT 
         m.station_id, m.station_name, m.city, m.created_by AS checker, 
         IF(fr.name = '無角色' OR fr.name IS NULL, '', fr.name) AS front_role, 
-        DATE_FORMAT(MAX(m.created_at), '%Y-%m-%d %H:%i:%s') AS created_at,
+        DATE_FORMAT(DATE_ADD(MAX(m.created_at), INTERVAL 8 HOUR), '%Y-%m-%d %H:%i:%s') AS created_at,
         
         MAX(m.bikes_in_dock_count) AS bikes_in_dock_count,
         MAX(m.reversed_saddle_count) AS reversed_saddle_count,
@@ -89,8 +89,8 @@ router.get('/flat-bikes', async (req, res) => {
         m.created_by AS checker, 
         IF(fr.name = '無角色' OR fr.name IS NULL, '', fr.name) AS front_role, 
         m.model, 
-        DATE_FORMAT(m.check_date, '%Y-%m-%d') AS formatted_check_date,
-        DATE_FORMAT(m.created_at, '%Y/%m/%d %H:%i:%s') AS formatted_created_at,
+        DATE_FORMAT(DATE_ADD(m.check_date, INTERVAL 8 HOUR), '%Y-%m-%d') AS formatted_check_date,
+        DATE_FORMAT(DATE_ADD(m.created_at, INTERVAL 8 HOUR), '%Y/%m/%d %H:%i:%s') AS formatted_created_at,
         (SELECT COUNT(*) FROM \`youbike_inspector\`.\`inspection_photos\` p WHERE p.inspection_id = m.id) AS photo_count
       FROM copied_inspections m
       LEFT JOIN users u ON m.created_by = u.emp_id 
@@ -225,7 +225,11 @@ router.post('/batch-update-bikes', async (req, res) => {
     // 2. 🚲 更新單車 (只使用 UPDATE，保證車號、場站等基本欄位不會被洗白)
     if (Array.isArray(updates) && updates.length > 0) {
       for (const row of updates) {
-        const { id, ...fields } = row;
+        
+        // 🌟 關鍵修改：將 created_at, formatted_created_at, check_date 從 fields 剔除！
+        // 這樣匯入 Excel 就絕對不會去覆蓋資料庫原本正確的時間！
+        const { id, created_at, formatted_created_at, check_date, ...fields } = row; 
+        
         const keys = Object.keys(fields);
         if (keys.length === 0) continue;
         
