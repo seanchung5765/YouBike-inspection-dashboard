@@ -100,7 +100,7 @@ const router = createRouter({
 // ============================================================================
 // 🛡️ 全局導航守衛 (Navigation Guard) - 防止越權與網址偷渡
 // ============================================================================
-router.beforeEach((to, from, next) => {
+/*router.beforeEach((to, from, next) => {
   // 1. 取得存在瀏覽器裡的登入者資訊
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : null;
@@ -126,6 +126,37 @@ router.beforeEach((to, from, next) => {
   }
 
   // 5. 權限沒問題，放行！
+  next();
+})*/
+
+// ============================================================================
+// 🛡️ 全局導航守衛 (Navigation Guard)
+// ============================================================================
+router.beforeEach((to, from, next) => {
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : null;
+  const userRoleLevel = user && user.role_level ? parseInt(user.role_level) : 0;
+
+  // 🌟 1. 設定「免登入白名單」：將登入頁與照片檢視頁加入
+  const publicPages = ['/login', '/photo-viewer'];
+  const authRequired = !publicPages.includes(to.path);
+
+  // 🌟 2. 如果要去的地方不在白名單內，且使用者未登入，就踢回登入頁
+  if (authRequired && !user) {
+    return next({ path: '/login' });
+  }
+
+  // 3. 檢查即將前往的頁面，是否有設定最低權限要求 (requiredRoleLevel)
+  const requiredLevelRecord = to.matched.find(record => record.meta.requiredRoleLevel !== undefined);
+  if (requiredLevelRecord) {
+    const requiredLevel = requiredLevelRecord.meta.requiredRoleLevel;
+    if (userRoleLevel < requiredLevel) {
+      ElMessage.error('權限不足！您無法訪問此頁面。');
+      return next({ path: '/dashboard' }); 
+    }
+  }
+
+  // 放行！
   next();
 })
 

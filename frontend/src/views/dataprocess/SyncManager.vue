@@ -43,7 +43,7 @@
           <div style="display: flex; justify-content: flex-end; gap: 10px;">
             
             <!-- 🌟 新增 v-if="isAdmin" -->
-            <!--<el-button 
+            <el-button 
               v-if="isAdmin"
               type="success" link
               :disabled="scope.row.status === 'published' || syncTarget !== null"
@@ -51,7 +51,7 @@
             >
               <el-icon v-if="syncTarget === scope.row.report_month" class="is-loading" style="margin-right: 5px;"><Refresh /></el-icon>
               {{ syncTarget === scope.row.report_month ? '資料載入中...' : '從模擬體驗載入資料' }}
-            </el-button>-->
+            </el-button>
             <!-- 🌟 大家都看得到匯出 Excel，不需要 v-if -->
             <el-button type="info" link @click="handleExport(scope.row.report_month, scope.row.status)" :disabled="syncTarget !== null">
               <el-icon><Download style="margin-right: 5px;"/></el-icon> 匯出 Excel
