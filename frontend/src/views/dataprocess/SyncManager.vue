@@ -42,8 +42,8 @@
         <template #default="scope">
           <div style="display: flex; justify-content: flex-end; gap: 10px;">
             
-            <!-- 🌟 新增 v-if="isAdmin" -->
-            <el-button 
+            <!-- 1. 從模擬體驗載入資料 (僅管理員) -->
+            <!--<el-button 
               v-if="isAdmin"
               type="success" link
               :disabled="scope.row.status === 'published' || syncTarget !== null"
@@ -51,13 +51,24 @@
             >
               <el-icon v-if="syncTarget === scope.row.report_month" class="is-loading" style="margin-right: 5px;"><Refresh /></el-icon>
               {{ syncTarget === scope.row.report_month ? '資料載入中...' : '從模擬體驗載入資料' }}
-            </el-button>
-            <!-- 🌟 大家都看得到匯出 Excel，不需要 v-if -->
-            <el-button type="info" link @click="handleExport(scope.row.report_month, scope.row.status)" :disabled="syncTarget !== null">
-              <el-icon><Download style="margin-right: 5px;"/></el-icon> 匯出 Excel
+            </el-button>-->
+
+            <!-- 2. 下載報表 (中階主管以上，且須發布或為管理員) -->
+            <el-button 
+              v-if="isMiddleManager && (scope.row.status === 'published' || isAdmin)"
+              type="warning" link 
+              @click="handleDownloadReport(scope.row.report_month)" 
+              :disabled="syncTarget !== null"
+            >
+              <el-icon><Document style="margin-right: 5px;"/></el-icon> 下載報表
             </el-button>
 
-            <!-- 🌟 新增 v-if="isAdmin" -->
+            <!-- 3. 匯出 Excel (大家都能看) -->
+            <el-button type="info" link @click="handleExport(scope.row.report_month, scope.row.status)" :disabled="syncTarget !== null">
+              <el-icon><Download style="margin-right: 5px;"/></el-icon> 匯出明細
+            </el-button>
+
+            <!-- 4. 匯入 Excel (僅管理員) -->
             <el-upload
               v-if="isAdmin"
               action=""
@@ -67,11 +78,11 @@
               :on-change="(file) => handleImportExcel(file, scope.row)"
             >
               <el-button type="primary" link :disabled="scope.row.status === 'published' || syncTarget !== null">
-                <el-icon><Upload style="margin-right: 5px;"/></el-icon> 匯入 Excel
+                <el-icon><Upload style="margin-right: 5px;"/></el-icon> 匯入明細
               </el-button>
             </el-upload>
             
-            <!-- 🌟 新增 v-if="isAdmin" -->
+            <!-- 5. 鎖定發布 (僅管理員) -->
             <el-button 
               v-if="isAdmin && scope.row.status === 'draft'"
               type="primary" link
@@ -91,13 +102,14 @@
 // 🌟 記得引入 computed
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download, Upload, Refresh } from '@element-plus/icons-vue'
+import { Download, Upload, Refresh, Document } from '@element-plus/icons-vue'
 
 import { exportMonthDataToExcel } from '../../utils/exportExcel'
 import { parseBikeExcel } from '../../utils/importExcel' 
 import { batchUpdateBikesAPI } from '../../api/dataProcess'
 import { getMonthlyReportsAPI, syncMonthlyDataAPI, publishMonthlyReportAPI } from '../../api/sync' 
 import { getScoringRulesAPI } from '../../api/scoring'
+import { exportMonthlyReportToExcel } from '../../utils/exportReport'
 
 const tableData = ref([])
 const loading = ref(false)
@@ -108,6 +120,7 @@ const syncProgress = ref(0)
 // 🌟 1. 取得當前使用者權限
 const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 const isAdmin = computed(() => currentUser.role_level >= 90);
+const isMiddleManager = computed(() => currentUser.role_level >= 50);
 
 // 🌟 2. 依照權限過濾表格資料
 const displayTableData = computed(() => {
@@ -123,6 +136,11 @@ const fetchList = async () => {
   } catch (error) {} 
   finally { loading.value = false }
 }
+
+// 🌟 3. 新增處理下載報表的點擊事件
+const handleDownloadReport = (month) => {
+  exportMonthlyReportToExcel(month);
+};
 
 const formatDateTime = (dateStr) => {
   if (!dateStr) return '-';

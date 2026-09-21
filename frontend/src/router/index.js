@@ -100,7 +100,7 @@ const router = createRouter({
 // ============================================================================
 // 🛡️ 全局導航守衛 (Navigation Guard) - 防止越權與網址偷渡
 // ============================================================================
-/*router.beforeEach((to, from, next) => {
+router.beforeEach((to, from, next) => {
   // 1. 取得存在瀏覽器裡的登入者資訊
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : null;
@@ -127,9 +127,9 @@ const router = createRouter({
 
   // 5. 權限沒問題，放行！
   next();
-})*/
+})
 
-// ============================================================================
+/*// ============================================================================
 // 🛡️ 全局導航守衛 (Navigation Guard)
 // ============================================================================
 router.beforeEach((to, from, next) => {
@@ -158,6 +158,6 @@ router.beforeEach((to, from, next) => {
 
   // 放行！
   next();
-})
+})*/
 
 export default router

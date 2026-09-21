@@ -14,7 +14,8 @@
     "element-plus": "^2.13.7",
     "vue": "^3.5.32",
     "vue-router": "^5.0.6",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.6",

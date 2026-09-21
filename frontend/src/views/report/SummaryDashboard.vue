@@ -22,7 +22,6 @@
         </div>
       </template>
 
-      <!-- 🌟 加入 getCellStyle 判斷顏色，並保留 processedTableData -->
       <el-table :data="processedTableData" v-loading="loading" border stripe style="width: 100%" :span-method="objectSpanMethod" :cell-style="getCellStyle">
         <el-table-column prop="city" label="地區" min-width="120" fixed="left" align="center">
           <template #default="scope">
@@ -31,57 +30,115 @@
         </el-table-column>
 
         <el-table-column label="整體" align="center">
-          <el-table-column prop="pure_station" label="場站妥善度" min-width="130" align="center">
-             <template #default="scope">{{ roundScore(scope.row.pure_station) }} 分</template>
+          <el-table-column prop="pure_station" min-width="170" align="center">
+            <!-- 🌟 自訂表頭與高階管理員 Tooltip -->
+            <template #header>
+              場站妥善度
+              <el-tooltip v-if="currentUser.role_level >= 90" effect="dark" placement="top">
+                <template #content><div style="white-space: pre-line; line-height: 1.5;">{{ formulas.pure_station }}</div></template>
+                <el-icon style="margin-left: 4px; cursor: help; vertical-align: middle;"><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </template>
+            <template #default="scope">{{ roundScore(scope.row.pure_station) }} 分</template>
           </el-table-column>
-          <el-table-column prop="pure_appearance" label="外觀與重要標示" min-width="180" align="center">
+
+          <el-table-column prop="pure_appearance" min-width="210" align="center">
+            <template #header>
+              外觀與重要標示
+              <el-tooltip v-if="currentUser.role_level >= 90" effect="dark" placement="top">
+                <template #content><div style="white-space: pre-line; line-height: 1.5;">{{ formulas.pure_appearance }}</div></template>
+                <el-icon style="margin-left: 4px; cursor: help; vertical-align: middle;"><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </template>
             <template #default="scope">{{ roundScore(scope.row.pure_appearance) }} 分</template>
           </el-table-column>
-          <el-table-column prop="pure_function" label="重要機能" min-width="120" align="center">
+
+          <el-table-column prop="pure_function" min-width="140" align="center">
+            <template #header>
+              重要機能
+              <el-tooltip v-if="currentUser.role_level >= 90" effect="dark" placement="top">
+                <template #content><div style="white-space: pre-line; line-height: 1.5;">{{ formulas.pure_function }}</div></template>
+                <el-icon style="margin-left: 4px; cursor: help; vertical-align: middle;"><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </template>
             <template #default="scope">{{ roundScore(scope.row.pure_function) }} 分</template>
           </el-table-column>
         </el-table-column>
 
         <el-table-column label="2.0 分數" align="center">
-          <el-table-column prop="anomalies_2_0" label="異常件數" min-width="90" align="center" />
-          <el-table-column prop="score_2_0_appearance" label="外觀與重要標示" min-width="150" align="center">
+          <el-table-column prop="anomalies_2_0" label="異常件數" min-width="110" align="center" />
+          <el-table-column prop="score_2_0_appearance" label="外觀與重要標示" min-width="175" align="center">
             <template #default="scope">{{ roundScore(scope.row.score_2_0_appearance) }} 分</template>
           </el-table-column>
           <el-table-column prop="score_2_0_function" label="重要機能" min-width="120" align="center">
             <template #default="scope">{{ roundScore(scope.row.score_2_0_function) }} 分</template>
           </el-table-column>
-          <el-table-column prop="score_2_0" label="總分" min-width="100" align="center">
+          <el-table-column prop="score_2_0" min-width="100" align="center">
+            <template #header>
+              總分
+              <el-tooltip v-if="currentUser.role_level >= 90" effect="dark" placement="top">
+                <template #content><div style="white-space: pre-line; line-height: 1.5;">{{ formulas.score_2_0 }}</div></template>
+                <el-icon style="margin-left: 4px; cursor: help; vertical-align: middle;"><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </template>
             <template #default="scope">
-              <!-- 🌟 取到小數點後第 1 位 -->
               <span style="font-weight: bold; font-size: 1.1em; color: #409EFF;">{{ formatOneDecimal(scope.row.score_2_0) }}</span>
             </template>
           </el-table-column>
         </el-table-column>
 
         <el-table-column label="2.0E 分數" align="center">
-          <el-table-column prop="anomalies_2_0e" label="異常件數" min-width="90" align="center" />
-          <el-table-column prop="score_2_0e_appearance" label="外觀與重要標示" min-width="150" align="center">
+          <el-table-column prop="anomalies_2_0e" label="異常件數" min-width="110" align="center" />
+          <el-table-column prop="score_2_0e_appearance" label="外觀與重要標示" min-width="175" align="center">
             <template #default="scope">{{ roundScore(scope.row.score_2_0e_appearance) }} 分</template>
           </el-table-column>
           <el-table-column prop="score_2_0e_function" label="重要機能" min-width="120" align="center">
             <template #default="scope">{{ roundScore(scope.row.score_2_0e_function) }} 分</template>
           </el-table-column>
-          <el-table-column prop="score_2_0e" label="總分" min-width="100" align="center">
+          <el-table-column prop="score_2_0e" min-width="100" align="center">
+             <template #header>
+              總分
+              <el-tooltip v-if="currentUser.role_level >= 90" effect="dark" placement="top">
+                <template #content><div style="white-space: pre-line; line-height: 1.5;">{{ formulas.score_2_0e }}</div></template>
+                <el-icon style="margin-left: 4px; cursor: help; vertical-align: middle;"><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </template>
             <template #default="scope">
-              <!-- 🌟 取到小數點後第 1 位 -->
               <span style="font-weight: bold; font-size: 1.1em; color: #409EFF;">{{ formatOneDecimal(scope.row.score_2_0e) }}</span>
             </template>
           </el-table-column>
         </el-table-column>
 
-        <el-table-column prop="maintenance_rate" label="一級維護率" min-width="120" align="center">
+        <el-table-column prop="maintenance_rate" min-width="170" align="center">
+           <template #header>
+            一級維護率
+            <el-tooltip v-if="currentUser.role_level >= 90" effect="dark" placement="top">
+              <template #content><div style="white-space: pre-line; line-height: 1.5;">{{ formulas.maintenance_rate }}</div></template>
+              <el-icon style="margin-left: 4px; cursor: help; vertical-align: middle;"><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </template>
           <template #default="scope">{{ scope.row.maintenance_rate }}%</template>
         </el-table-column>
-        <el-table-column prop="availability_rate_calc" label="可動率" min-width="110" align="center">
+
+        <el-table-column prop="availability_rate_calc" min-width="140" align="center">
+          <template #header>
+            可動率
+            <el-tooltip v-if="currentUser.role_level >= 90" effect="dark" placement="top">
+              <template #content><div style="white-space: pre-line; line-height: 1.5;">{{ formulas.availability_rate }}</div></template>
+              <el-icon style="margin-left: 4px; cursor: help; vertical-align: middle;"><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </template>
           <template #default="scope">{{ scope.row.availability_rate_calc }}%</template>
         </el-table-column>
 
-        <el-table-column prop="final_score" label="總分" min-width="100" align="center" fixed="right">
+        <el-table-column prop="final_score" min-width="100" align="center" fixed="right">
+          <template #header>
+            總分
+            <el-tooltip v-if="currentUser.role_level >= 90" effect="dark" placement="top">
+              <template #content><div style="white-space: pre-line; line-height: 1.5;">{{ formulas.final_score }}</div></template>
+              <el-icon style="margin-left: 4px; cursor: help; vertical-align: middle;"><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </template>
           <template #default="scope">
             <span style="font-size: 1.2em; font-weight: bold;">
               {{ formatTwoDecimals(scope.row.final_score) }}
@@ -95,7 +152,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="display_group_score" label="營運區總分" min-width="110" align="center" fixed="right">
+        <el-table-column prop="display_group_score" label="區總分" min-width="110" align="center" fixed="right">
           <template #default="scope">
             <span style="font-size: 1.4em; font-weight: bold; color: #E6A23C;">
               {{ formatTwoDecimals(scope.row.display_group_score) }}
@@ -114,14 +171,13 @@
       </el-table>
     </el-card>
 
-        <el-card style="margin-bottom: 20px;">
+    <el-card style="margin-bottom: 20px;">
       <template #header>
         <div class="mobile-header">
           <h2>📊 基礎施測數據與胎壓檢測</h2>
         </div>
       </template>
 
-      <!-- 🌟 改綁定 normalTableData (排除總計行) -->
       <el-table :data="normalTableData" v-loading="loading" border stripe style="width: 100%" show-summary :summary-method="getSummaries">
         <el-table-column prop="city" label="地區" min-width="100" fixed="left" align="center">
           <template #default="scope">
@@ -190,7 +246,9 @@
             </span>
           </h2>
         </div>
+        
       </template>
+      
       
       <el-table :data="normalTableData" v-loading="loading" border stripe style="width: 100%" :show-summary="true" :summary-method="getMaintenanceSummary">
         <el-table-column prop="city" label="評估區域" min-width="100" fixed="left" align="center">
@@ -213,7 +271,6 @@
           </template>
         </el-table-column>
 
-        <!-- 🌟 在 el-table-column 加上 v-if 進行權限阻擋 -->
         <el-table-column v-if="currentUser.role_level >= 90" prop="broken_bikes" label="故障車輛數" min-width="120" align="center">
           <template #default="scope">
             <el-input-number v-if="currentUser.role_level >= 90 && monthStatus !== 'published'" v-model="scope.row.broken_bikes" :min="0" :controls="false" style="width: 100%" @change="saveMaintenance(scope.row, 'broken_bikes', scope.row.broken_bikes)" />
@@ -221,7 +278,6 @@
           </template>
         </el-table-column>
 
-        <!-- 🌟 在 el-table-column 加上 v-if 進行權限阻擋 -->
         <el-table-column v-if="currentUser.role_level >= 90" prop="broken_rate" label="故障車比率" min-width="110" align="center">
           <template #default="scope">
             <span style="color: #909399;">
@@ -259,8 +315,21 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Refresh } from '@element-plus/icons-vue'
+import { Refresh, QuestionFilled } from '@element-plus/icons-vue' // 🌟 引入問號 icon
 import { getReportSummaryAPI, recalculateReportAPI, getReportMonthsAPI, updateMaintenanceDataAPI } from '../../api/report' 
+
+// 🌟 高階管理員專用：公式對照表字典 (可利用 \n 進行換行排版)
+// 請將以下內容替換為你們系統真實的計算公式
+const formulas = {
+  pure_station: '【場站妥善度】計算公式：\n100 - ((該縣市場站總扣分 × 所有類別扣分權重加總) ÷ (抽驗車輛數 × 該縣市場站總扣分))',
+  pure_appearance: '【外觀與重要標示】計算公式：\n100 - ((該縣市外觀與重要標示總扣分 × 所有類別扣分權重加總) ÷ (抽驗車輛數 × 該縣市外觀與重要標示總扣分))',
+  pure_function: '【重要機能】計算公式：\n100 - ((該縣市重要機能總扣分 × 所有類別扣分權重加總) ÷ (抽驗車輛數 × 該縣市重要機能總扣分))',
+  score_2_0: '【2.0 總分】計算公式：\n(100 × 該縣市2.0總車輛數 + 該縣市2.0總扣分) ÷ 該縣市2.0總車輛數',
+  score_2_0e: '【2.0E 總分】計算公式：\n(100 × 該縣市2.0E總車輛數 + 該縣市2.0E總扣分) ÷ 該縣市2.0E總車輛數',
+  maintenance_rate: '【一級維護率】計算公式：\n一級維護紀錄數 ÷ (總營運車數 - 事故車 - 故障車) × 100%',
+  availability_rate: '【可動率】計算公式：\n100 - (無法租借車數 ÷ 抽驗總在站車數 × 100%)',
+  final_score: '【最終總分】計算公式：\n(各車型與場站依權重加總) + (維護率扣分) + (可動率扣分)'
+}
 
 const loading = ref(false)
 const calculating = ref(false)
@@ -271,21 +340,18 @@ const monthStatus = ref('draft')
 const tableData = ref([])
 const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 
-// 🌟 自訂儲存格顏色判斷 (可動率表)
 const getAvailabilityStyle = ({ row, column }) => {
   if (!totalAvgRow.value) return {};
 
   if (column.property === 'availability_rate_calc') {
     let style = {};
     const cellVal = Number(row.availability_rate_calc);
-    const avgVal = Number(totalAvgRow.value.availability_rate_calc); // 抓取總計行的平均可動率
+    const avgVal = Number(totalAvgRow.value.availability_rate_calc);
 
     if (!isNaN(cellVal)) {
-      // 1. 低於平均黃底
       if (!isNaN(avgVal) && cellVal < avgVal) {
         style.backgroundColor = '#FFF8E1'; 
       }
-      // 2. 低於 99% 加紅字 (可覆蓋黃底上的字體顏色)
       if (cellVal < 99) {
         style.color = '#F56C6C'; 
         style.fontWeight = 'bold';
@@ -308,20 +374,17 @@ const formatTwoDecimals = (val) => {
   return isNaN(num) ? val : num.toFixed(2);
 };
 
-// 🌟 新增：針對 2.0 與 2.0E 總分的 1 位小數處理
 const formatOneDecimal = (val) => {
   if (val === null || val === undefined || val === '無資料' || val === '-') return val;
   const num = Number(val);
   return isNaN(num) ? val : num.toFixed(2);
 };
 
-// 🌟 將「總計」過濾掉的一般表格資料 (用於可動率、一級維護的自動加總)
 const normalTableData = computed(() => {
   if (!tableData.value) return [];
   return tableData.value.filter(r => r.city !== '總計');
 });
 
-// 🌟 提取「總計」列的資料 (用於對比顏色)
 const totalAvgRow = computed(() => {
   if (!tableData.value) return null;
   return tableData.value.find(r => r.city === '總計');
@@ -364,7 +427,6 @@ const processedTableData = computed(() => {
   
   flushGroup(); 
 
-  // 🌟 將資料庫算好的「總計」加回最後面
   if (totalAvgRow.value) {
     result.push({
       ...totalAvgRow.value,
@@ -385,21 +447,17 @@ const objectSpanMethod = ({ row, column }) => {
   }
 };
 
-// 🌟 自訂儲存格顏色判斷 (總分表)
 const getCellStyle = ({ row, column }) => {
-  // 總計行底色給灰色
   if (row.city === '總計') return { backgroundColor: '#F2F6FC', fontWeight: 'bold' };
 
   if (!totalAvgRow.value) return {};
 
-  // 1. 細項分數：低於平均黃底，不要紅字
   const detailColumns = [
     'pure_station', 'pure_appearance', 'pure_function',
     'score_2_0_appearance', 'score_2_0_function',
     'score_2_0e_appearance', 'score_2_0e_function'
   ];
 
-  // 2. 總分：低於 92 分紅字，不要黃底
   const totalColumns = [
     'score_2_0', 'score_2_0e', 'final_score'
   ];
@@ -410,7 +468,6 @@ const getCellStyle = ({ row, column }) => {
     const cellVal = Number(row[column.property]);
     const avgVal = Number(totalAvgRow.value[column.property]);
     
-    // 細項：只判斷黃底
     if (!isNaN(cellVal) && !isNaN(avgVal) && cellVal < avgVal) {
       style.backgroundColor = '#FFF8E1'; 
     }
@@ -418,7 +475,6 @@ const getCellStyle = ({ row, column }) => {
   else if (totalColumns.includes(column.property)) {
     const cellVal = Number(row[column.property]);
     
-    // 總分：只判斷紅字
     if (!isNaN(cellVal) && cellVal < 92) {
       style.color = '#F56C6C'; 
       style.fontWeight = 'bold';
@@ -428,20 +484,12 @@ const getCellStyle = ({ row, column }) => {
   return style;
 };
 
-// 🌟 100% 純顯示版：前端不碰任何數學與扣分邏輯
 const saveMaintenance = async (row, field, value) => {
   try {
-    // 1. 將使用者輸入的數值存入資料庫
     await updateMaintenanceDataAPI(selectedMonth.value, row.city, field, value);
-    
     calculating.value = true;
-    
-    // 2. 呼叫後端核心引擎重新結算 (讓後端去算那些 Penalty 跟加總)
     await recalculateReportAPI(selectedMonth.value);
-    
-    // 3. 重新撈取後端算好的最新完整報表來顯示
     await fetchSummary();
-    
     ElMessage.success('分數已自動更新！');
   } catch (error) { 
     ElMessage.error('儲存或結算失敗，請稍後再試'); 

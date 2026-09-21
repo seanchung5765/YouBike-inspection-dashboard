@@ -1,3 +1,4 @@
+<!--D:\web_project\P2026_6模擬體驗後台\程式碼\YouBike-inspection-dashboard\frontend\src\components\admin\AddUserDialog.vue-->
 <template>
   <el-dialog
     v-model="visible"
@@ -18,9 +19,10 @@
           value-key="emp_id" 
           style="width: 100%"
         >
+          <!-- 🌟 將 label 從 `${item.emp_id} - ${item.name} (${item.department})` 改成下面這樣 -->
           <el-option
             v-for="item in ldapOptions" :key="item.emp_id"
-            :label="`${item.emp_id} - ${item.name} (${item.department})`"
+            :label="`${item.emp_id} - ${item.name}`"
             :value="item"
           />
         </el-select>

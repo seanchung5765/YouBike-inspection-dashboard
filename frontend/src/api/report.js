@@ -42,3 +42,4 @@ export const getReportCitiesAPI = (userId, roleLevel) => {
 export const updateMaintenanceDataAPI = (month, city, field, value) => {
   return request.put('/report/maintenance', { month, city, field, value })
 }
+
