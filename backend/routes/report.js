@@ -10,7 +10,7 @@ const calcTo4 = (num) => parseFloat(Number(num).toFixed(4));
 // 核心結算引擎：負責計算官方巡檢分數、營運處自評分數、可動率與一級維護率懲罰
 // ============================================================================
 const calculateMonthlyScores = async (month) => {
-  console.log(`[排程啟動] 開始計算 ${month} 月份總分...`);
+  console.log(`[排程啟動] 開始計算 ${month} 月份總分與缺失統計...`);
   try {
     // 1. 撈取基礎資料：當月巡檢紀錄、計分規則、使用者權限、手動填寫的維護資料
     const [records] = await db.query(`SELECT * FROM copied_inspections WHERE report_month = ?`, [month]);
@@ -37,7 +37,6 @@ const calculateMonthlyScores = async (month) => {
     const maxDeductionMap = { '場站': 0, '自行車外觀與重要標示': 0, '自行車重要機能': 0 };
     let mergeGroupMaxMap = {};
     
-    // 處理合併扣分：同群組的缺失只取扣分最重（絕對值最大）的一項作為該群組的滿分基準
     rules.forEach(rule => {
       const pts = Math.abs(parseFloat(rule.deduction_points || 0));
       if (rule.merge_group) mergeGroupMaxMap[rule.merge_group] = Math.max(mergeGroupMaxMap[rule.merge_group] || 0, pts);
@@ -50,18 +49,10 @@ const calculateMonthlyScores = async (month) => {
       if (maxDeductionMap[cat] !== undefined) maxDeductionMap[cat] += pts;
     });
 
-    // 取得三大類的獨立基準分母，以及全局總基準分母
     const sumMaxStation = maxDeductionMap['場站'];
     const sumMaxAppearance = maxDeductionMap['自行車外觀與重要標示']+4;
     const sumMaxFunction = maxDeductionMap['自行車重要機能'];
     const sumMaxTotal = sumMaxStation + sumMaxAppearance + sumMaxFunction;
-
-    //console.log(`==== 基準分母校對 ====`);
-    //console.log(`場站基準 (sumMaxStation): ${sumMaxStation}`);
-    //console.log(`外觀基準 (sumMaxAppearance): ${sumMaxAppearance}`);
-    //console.log(`機能基準 (sumMaxFunction): ${sumMaxFunction}`);
-    //console.log(`系統總基準 (sumMaxTotal): ${sumMaxTotal}`);
-    //console.log(`======================`);
 
     // 3. 準備各縣市與大區的統計容器
     const [regionRows] = await db.query(`SELECT r.name AS city_name, rg.name AS group_name FROM regions r LEFT JOIN report_groups rg ON r.report_group_id = rg.id`);
@@ -87,10 +78,16 @@ const calculateMonthlyScores = async (month) => {
           deduction_total: 0, deduction_2_0: 0, deduction_2_0e: 0,
           raw_appearance_deduction_2_0: 0, raw_function_deduction_2_0: 0,
           raw_appearance_deduction_2_0e: 0, raw_function_deduction_2_0e: 0,
-          anomalies_2_0: 0, anomalies_2_0e: 0 
+          anomalies_2_0: 0, anomalies_2_0e: 0,
+          // 🌟 [新增] 用來記錄「缺失統計表」各項目異常件數的容器
+          issueCounts: {} 
         },
         ops: { total_bikes: 0, deduction_total: 0 } 
       };
+      // 🌟 [新增] 預先為每個項目建立計數器
+      rules.forEach(rule => {
+        groupStats[g].official.issueCounts[rule.item_key] = 0;
+      });
     });
 
     // 4. 逐車結算：掃描每筆巡檢紀錄，累加扣分與異常件數
@@ -100,7 +97,6 @@ const calculateMonthlyScores = async (month) => {
       const groupName = cityToGroupMap[rawCity] || '未分類';
       if (groupName === '未分類') return;
 
-      // 4-A. 營運處自評資料（僅計算總扣分，不計入官方報表細項）
       if (creatorRole === '營運處') {
         const opsPool = groupStats[groupName].ops;
         if (row.bike_no) opsPool.total_bikes += 1;
@@ -117,10 +113,8 @@ const calculateMonthlyScores = async (month) => {
         opsPool.deduction_total += rowTotalDeduction;
 
       } else {
-        // 4-B. 官方巡檢資料（計算所有指標）
         const statPool = groupStats[groupName].official;
         
-        // 統計場站相關數據 (可動率的分母與分子來源)
         if (row.station_name) {
           statPool.unique_stations.add(row.station_name);
           let pureDate = 'unknown_date';
@@ -137,7 +131,6 @@ const calculateMonthlyScores = async (month) => {
           }
         }
         
-        // 統計車輛相關數據與胎壓異常
         if (row.bike_no) {
           statPool.total_bikes += 1;
           if (row.model === '2.0E') statPool.ebikes_count += 1;
@@ -159,26 +152,25 @@ const calculateMonthlyScores = async (month) => {
         let anomalyGroups = new Set();
         let independentAnomalies = 0;  
 
-        // 結算該車輛的各項扣分
         rules.forEach(rule => {
           if (row[rule.item_key] === 1) {
-            const points = parseFloat(rule.deduction_points || 0);
             
-            // 處理合併群組的扣分與件數
+            // 🌟 [新增] 如果這項缺失被打勾，就幫這縣市的這項缺失計數 +1
+            statPool.issueCounts[rule.item_key] += 1;
+
+            const points = parseFloat(rule.deduction_points || 0);
             if (rule.merge_group) {
               mergeBuckets[rule.merge_group] = Math.min(mergeBuckets[rule.merge_group] || 0, points);
               if (rule.major_category !== '場站') {
-                anomalyGroups.add(rule.merge_group); // 同群組只算一件異常
+                anomalyGroups.add(rule.merge_group); 
               }
             } 
-            // 處理獨立項目的扣分與件數
             else {
               rowTotalDeduction += points;
               if (rule.major_category !== '場站') {
                 rowBikeDeduction += points;
                 independentAnomalies += 1;
                 
-                // 依據車種分流扣分 (2.0 vs 2.0E)
                 if (rule.major_category === '自行車外觀與重要標示') {
                   if (row.model === '2.0E') statPool.raw_appearance_deduction_2_0e += points;
                   else statPool.raw_appearance_deduction_2_0 += points;
@@ -188,7 +180,6 @@ const calculateMonthlyScores = async (month) => {
                   else statPool.raw_function_deduction_2_0 += points;
                 }
               }
-              // 累加大類別扣分
               if (rule.major_category === '場站') statPool.raw_station_deduction += points;
               if (rule.major_category === '自行車外觀與重要標示') statPool.raw_appearance_deduction += points;
               if (rule.major_category === '自行車重要機能') statPool.raw_function_deduction += points;
@@ -196,7 +187,6 @@ const calculateMonthlyScores = async (month) => {
           }
         });
 
-        // 將合併群組結算後的最終扣分，依據大類別進行分發
         Object.keys(mergeBuckets).forEach(group => {
           const points = mergeBuckets[group];
           rowTotalDeduction += points;
@@ -217,7 +207,6 @@ const calculateMonthlyScores = async (month) => {
           if (cat === '自行車重要機能') statPool.raw_function_deduction += points;
         });
 
-        // 該車輛的總體扣分與總異常件數結算
         statPool.deduction_total += rowTotalDeduction;
         const totalBikeAnomalies = independentAnomalies + anomalyGroups.size;
 
@@ -232,8 +221,10 @@ const calculateMonthlyScores = async (month) => {
     });
 
     await db.query(`DELETE FROM city_monthly_scores WHERE report_month = ?`, [month]);
+    
+    // 🌟 [新增] 清空這個月舊的缺失統計資料，準備寫入新的
+    await db.query(`DELETE FROM city_issue_stats WHERE report_month = ?`, [month]);
 
-    // 用於收集全國總計數據的容器
     const nat = {
       tested_stations: 0, total_bikes: 0, bikes_2_0_count: 0, ebikes_count: 0, tire_fail_count: 0,
       raw_station_deduction: 0, raw_appearance_deduction: 0, raw_function_deduction: 0,
@@ -250,37 +241,36 @@ const calculateMonthlyScores = async (month) => {
       const stat = pools.official;
       const opsStat = pools.ops;
 
-      // 胎壓不合格率
+      // 🌟 [新增] 將這個縣市算好的缺失統計，批次寫入資料庫
+      if (stat.total_bikes > 0) {
+        for (const [itemKey, failCount] of Object.entries(stat.issueCounts)) {
+          const failRate = calcTo4((failCount / stat.total_bikes) * 100);
+          await db.query(`
+            INSERT INTO city_issue_stats (report_month, city, item_key, fail_count, fail_rate)
+            VALUES (?, ?, ?, ?, ?)
+          `, [month, groupName, itemKey, failCount, failRate.toFixed(2)]);
+        }
+      }
+
       const tireFailRate = stat.total_bikes > 0 ? calcTo4((stat.tire_fail_count / stat.total_bikes) * 100) : 0;
       const count_2_0e = stat.ebikes_count;
       const count_2_0 = stat.total_bikes - count_2_0e;
 
-      // 終極化簡公式：100 + (實際扣分 * 總滿分) / (總車數 * 分類滿分)
       const calculateYourFormula = (A, Ds, N, currentSumMaxTotal = sumMaxTotal) => {
         if (N === 0 || currentSumMaxTotal === 0 || A === 0) return 100.0000; 
         const finalVal = 100 + ((Ds * currentSumMaxTotal) / (N * A));
-        return calcTo4(finalVal); // 到最後一步再截斷
+        return calcTo4(finalVal); 
       };
 
-      //console.log(`\n==== [${groupName}] 扣分明細對帳單 ====`);
-      //console.log(`總測驗車輛數 (N): ${stat.total_bikes}`);
-      //console.log(`場站總扣分 (Ds): ${stat.raw_station_deduction}`);
-      //console.log(`外觀總扣分 (Ds): ${stat.raw_appearance_deduction}`);
-      //console.log(`機能總扣分 (Ds): ${stat.raw_function_deduction}`);
-
-
-      // 計算三大類別分數
       const score_station = calculateYourFormula(sumMaxStation, stat.raw_station_deduction, stat.total_bikes);
       const score_appearance = calculateYourFormula(sumMaxAppearance, stat.raw_appearance_deduction, stat.total_bikes);
       const score_function = calculateYourFormula(sumMaxFunction, stat.raw_function_deduction, stat.total_bikes);
       
-      // 計算 2.0 與 2.0E 的細項分數
       const score_2_0_appearance = calculateYourFormula(sumMaxAppearance, stat.raw_appearance_deduction_2_0, count_2_0);
       const score_2_0_function = calculateYourFormula(sumMaxFunction, stat.raw_function_deduction_2_0, count_2_0);
       const score_2_0e_appearance = calculateYourFormula(sumMaxAppearance, stat.raw_appearance_deduction_2_0e, count_2_0e);
       const score_2_0e_function = calculateYourFormula(sumMaxFunction, stat.raw_function_deduction_2_0e, count_2_0e);
 
-      // 計算可動率與階梯式懲罰分數
       let availability_rate_calc = 100.0000;
       if (stat.total_docked_bikes > 0) availability_rate_calc = calcTo4(((stat.total_docked_bikes - stat.unrentable_bikes) / stat.total_docked_bikes) * 100);
 
@@ -291,7 +281,6 @@ const calculateMonthlyScores = async (month) => {
       else if (availability_rate_calc >= 95 && availability_rate_calc < 97) availability_penalty = -2;
       else if (availability_rate_calc >= 97 && availability_rate_calc < 99) availability_penalty = -1;
 
-      // 計算一級維護率與階梯式懲罰分數
       const md = manualDataMap[groupName] || {};
       const t_fleet = md.total_fleet_bikes || 0;
       const t_accident = md.accident_bikes || 0;
@@ -312,7 +301,6 @@ const calculateMonthlyScores = async (month) => {
         else if (maintenance_rate >= 85 && maintenance_rate < 90) maintenance_penalty = -1;
       }
 
-      // 計算 2.0 總分、2.0E 總分，以及本體妥善度基準總分
       let score_2_0 = 100.0000;
       if (count_2_0 > 0) score_2_0 = calcTo4(100 + (stat.deduction_2_0 / count_2_0));
       let score_2_0e = 100.0000;
@@ -321,17 +309,14 @@ const calculateMonthlyScores = async (month) => {
       let score_total_base = 100.0000;
       if (stat.total_bikes > 0) score_total_base = calcTo4(100 + (stat.deduction_total / stat.total_bikes));
       
-      // 計算最終總分 (本體總分 + 可動率懲罰 + 維護率懲罰)
       let final_score = calcTo4(score_total_base + availability_penalty + maintenance_penalty);
 
-      // 計算營運處視角的總分
       let ops_final_score = null;
       if (opsStat.total_bikes > 0) {
         const ops_base = calcTo4(100 + (opsStat.deduction_total / opsStat.total_bikes));
         ops_final_score = calcTo4(ops_base + availability_penalty + maintenance_penalty);
       }
 
-      // 累積該縣市數據至全國總計容器
       nat.tested_stations += stat.unique_stations.size;
       nat.total_bikes += stat.total_bikes;
       nat.bikes_2_0_count += count_2_0;
@@ -357,7 +342,6 @@ const calculateMonthlyScores = async (month) => {
       nat.broken_bikes += t_broken;
       nat.maintenance_records += m_records;
 
-      // 將該縣市最終成績寫入資料庫 (寫入時強制轉換為 2 位小數呈現)
       await db.query(`
         INSERT INTO city_monthly_scores 
         (report_month, city, tested_stations, total_bikes, bikes_2_0_count, ebikes_count, tire_fail_count, tire_fail_rate, 
@@ -377,9 +361,7 @@ const calculateMonthlyScores = async (month) => {
       ]);
     }
 
-    // ==========================================================
     // 6. 計算全國「總計」數據並寫入資料庫
-    // ==========================================================
     const calculateYourFormulaNat = (A, Ds, N) => {
       if (N === 0 || sumMaxTotal === 0 || A === 0) return 100.0000; 
       const weight = calcTo4((A / sumMaxTotal) * 100);
@@ -425,8 +407,7 @@ const calculateMonthlyScores = async (month) => {
     let n_score_total_base = 100.0000;
     if (nat.total_bikes > 0) n_score_total_base = calcTo4(100 + (nat.deduction_total / nat.total_bikes));
     
-    // 全國總計：不扣除營運 KPI 的可動率與維護率懲罰，純粹反映硬體妥善度
-    let n_final_score = calcTo4(n_score_total_base);
+    let n_final_score = calcTo4(n_score_total_base + n_avail_penalty + n_maint_penalty);
 
     await db.query(`
       INSERT INTO city_monthly_scores 
@@ -445,9 +426,7 @@ const calculateMonthlyScores = async (month) => {
       nat.anomalies_2_0, nat.anomalies_2_0e
     ]);
     
-    // ==========================================================
     // 7. 計算營運區(大區)加權平均總分
-    // ==========================================================
     const [scoresForGroup] = await db.query(`
       SELECT c.city, c.final_score, c.total_bikes, rg.merge_group 
       FROM city_monthly_scores c
@@ -474,7 +453,7 @@ const calculateMonthlyScores = async (month) => {
       `, [groupScore, month, row.city]);
     }
 
-    console.log(`[排程結束] ${month} 月份大區結算完成！`);
+    console.log(`[排程結束] ${month} 月份大區結算與缺失統計完成！`);
   } catch (error) {
     console.error(`[排程錯誤] 計算失敗:`, error);
     throw error;
@@ -485,21 +464,17 @@ const calculateMonthlyScores = async (month) => {
 // API 路由區塊
 // ============================================================================
 
-// 雲端每日排程結算 API
 router.post('/cron-daily-calculate', async (req, res) => {
   const d = new Date();
   const currentMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   try {
-    console.log(`[雲端排程觸發] 準備執行 ${currentMonth} 自動結算...`);
     await calculateMonthlyScores(currentMonth);
     res.json({ success: true, message: `${currentMonth} 排程結算成功` });
   } catch (error) {
-    console.error(`[雲端排程失敗]:`, error);
     res.status(500).json({ success: false, message: '排程結算發生錯誤' });
   }
 });
 
-// 獲取月結報表分數
 router.get('/summary', async (req, res) => {
   const { month } = req.query; 
   try {
@@ -520,7 +495,6 @@ router.get('/summary', async (req, res) => {
   }
 });
 
-// 手動觸發重新結算
 router.post('/recalculate', async (req, res) => {
   const { month } = req.body;
   if (!month) return res.status(400).json({ success: false, message: '缺少月份' });
@@ -532,7 +506,6 @@ router.post('/recalculate', async (req, res) => {
   }
 });
 
-// 更新各縣市的手動維護保養數據
 router.put('/maintenance', async (req, res) => {
   const { month, city, field, value } = req.body;
   try {
@@ -543,7 +516,6 @@ router.put('/maintenance', async (req, res) => {
   }
 });
 
-// 獲取可選月份清單
 router.get('/months', async (req, res) => {
   const { role_level } = req.query;
   try {
@@ -557,83 +529,59 @@ router.get('/months', async (req, res) => {
   }
 });
 
-// 缺失統計表 API：計算並回傳各項目的異常件數與異常率
+// 缺失統計表 API：直接從資料庫讀取已算好的結果
 router.get('/city-issues', async (req, res) => {
   const { month, city } = req.query; 
   if (!month || !city) return res.status(400).json({ success: false, message: '缺少參數' });
 
   try {
-    const [regionRows] = await db.query(`SELECT r.name AS city_name, rg.name AS group_name FROM regions r LEFT JOIN report_groups rg ON r.report_group_id = rg.id`);
-    const targetCities = [];
-    regionRows.forEach(r => {
-      if (r.group_name === city) {
-        targetCities.push(r.city_name);
-        targetCities.push(r.city_name.replace('臺', '台'));
-        targetCities.push(r.city_name.replace('台', '臺'));
-      }
-    });
-    const validCities = [...new Set(targetCities)];
+    // 🌟 1. 核心查詢：直接 JOIN 剛剛建的統計表與計分規則表
+    const sql = `
+      SELECT 
+        r.major_category, r.sub_category, r.item_name, r.bike_type, r.severity,
+        s.fail_count, s.fail_rate
+      FROM scoring_rules r
+      LEFT JOIN city_issue_stats s ON r.item_key = s.item_key 
+        AND s.report_month = ? AND s.city = ?
+      WHERE r.is_active = 1
+      ORDER BY r.major_category, r.id
+    `;
+    const [rows] = await db.query(sql, [month, city]);
 
-    if (validCities.length === 0) return res.json({ success: true, data: { A: [], B: [], C: [], summary: { totalStations: 0, totalBikes: 0, ebikesCount: 0 } } });
+    // 🌟 2. 準備回傳給前端的格式 (A, B, C 分級)
+    const resultData = { A: [], B: [], C: [], summary: { totalStations: 0, totalBikes: 0, ebikesCount: 0 } };
 
-    const [usersRows] = await db.query(`SELECT u.name, u.emp_id, f.name AS role_name FROM users u LEFT JOIN front_roles f ON u.front_role_id = f.id`);
-    const userRoleMap = {};
-    usersRows.forEach(us => {
-      if(us.name) userRoleMap[us.name] = us.role_name;
-      if(us.emp_id) userRoleMap[us.emp_id] = us.role_name;
-    });
+    // (選擇性) 如果你需要 summary 的總車數，可以再去 city_monthly_scores 抓一筆配給它
+    const [[summaryRow]] = await db.query(`SELECT tested_stations, total_bikes, ebikes_count FROM city_monthly_scores WHERE report_month = ? AND city = ?`, [month, city]);
+    if (summaryRow) {
+      resultData.summary = { totalStations: summaryRow.tested_stations, totalBikes: summaryRow.total_bikes, ebikesCount: summaryRow.ebikes_count };
+    }
 
-    const [allRecords] = await db.query(`SELECT * FROM copied_inspections WHERE report_month = ? AND city IN (?)`, [month, validCities]);
-    
-    // 排除營運處主管自評，只統計官方巡檢缺失
-    const records = allRecords.filter(row => {
-      const creatorRole = userRoleMap[row.created_by] || '其他';
-      return creatorRole !== '營運處';
-    });
-
-    const [rules] = await db.query(`SELECT * FROM scoring_rules WHERE is_active = 1 ORDER BY major_category, id`);
-
-    const uniqueStations = new Set();
-    let totalBikes = 0, ebikesCount = 0;
-    records.forEach(row => {
-      if (row.station_name) uniqueStations.add(row.station_name);
-      if (row.bike_no) { totalBikes += 1; if (row.model === '2.0E') ebikesCount += 1; }
-    });
-
-    const totalStations = uniqueStations.size;
-    const resultData = { A: [], B: [], C: [], summary: { totalStations, totalBikes, ebikesCount } };
-
-    rules.forEach(rule => {
-      let failCount = 0;
-      
-      // 計算實際異常件數 (包含場站缺失乘載至該站所有車輛的數量)
-      records.forEach(row => { 
-        if (row[rule.item_key] === 1) failCount += 1; 
-      });
-
-      const denominator = totalBikes;
-      const failRate = denominator > 0 ? calcTo4((failCount / denominator) * 100) : 0;
-      
+    // 🌟 3. 將撈出來的現成資料分類塞入陣列
+    rows.forEach(row => {
       const itemData = {
-        major_category: rule.major_category, 
-        sub_category: rule.sub_category || '',
-        item_name: rule.item_name, 
-        bike_type: rule.bike_type || 'ALL', 
-        fail_count: failCount, 
-        fail_rate: parseFloat(failRate.toFixed(0)) 
+        major_category: row.major_category, 
+        sub_category: row.sub_category || '',
+        item_name: row.item_name, 
+        bike_type: row.bike_type || 'ALL', 
+        fail_count: row.fail_count || 0, 
+        
+        // 🌟 把原本的 fail_rate: parseFloat(row.fail_rate || 0) 改成下面這樣：
+        fail_rate: Math.round(parseFloat(row.fail_rate || 0))
       };
       
-      if (rule.severity === 'A' || rule.severity === '重大問題') resultData.A.push(itemData);
-      else if (rule.severity === 'B' || rule.severity === '重點問題') resultData.B.push(itemData);
+      if (row.severity === 'A' || row.severity === '重大問題') resultData.A.push(itemData);
+      else if (row.severity === 'B' || row.severity === '重點問題') resultData.B.push(itemData);
       else resultData.C.push(itemData); 
     });
+
     res.json({ success: true, data: resultData });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ success: false });
   }
 });
 
-// 獲取該使用者有權限瀏覽的縣市清單
 router.get('/cities', async (req, res) => {
   const { user_id, role_level } = req.query;
   try {
