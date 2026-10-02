@@ -38,7 +38,7 @@
 
         <!-- 🌟 新增：記住我 與 忘記密碼 -->
         <div class="form-options">
-          <el-checkbox v-model="rememberMe">記住我</el-checkbox>
+          <el-checkbox v-model="rememberMe">記住帳號</el-checkbox>
           <el-link type="primary" :underline="false" @click="handleForgotPassword">忘記密碼？</el-link>
         </div>
 
@@ -99,7 +99,7 @@ onMounted(() => {
 
 // 忘記密碼的提示邏輯
 const handleForgotPassword = () => {
-  ElMessage.info('請聯繫系統管理員 (IT 部門) 協助重置密碼。')
+  ElMessage.info('請聯繫系統管理員 (MIS 部門) 協助重置密碼。')
 }
 
 // 3. 登入邏輯

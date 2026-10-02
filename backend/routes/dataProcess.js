@@ -53,7 +53,13 @@ router.get('/stations', async (req, res) => {
       LEFT JOIN users u ON m.created_by = u.emp_id 
       LEFT JOIN front_roles fr ON u.front_role_id = fr.id
       WHERE m.report_month = ?
-      GROUP BY m.station_id, m.station_name, m.city, m.created_by, fr.name
+      GROUP BY 
+        m.station_id, 
+        m.station_name, 
+        m.city, 
+        m.created_by, 
+        fr.name,
+        DATE(DATE_SUB(DATE_ADD(m.created_at, INTERVAL 8 HOUR), INTERVAL 4 HOUR))
       ORDER BY created_at DESC;
     `;
     const [rows] = await db.query(sql, [month]);

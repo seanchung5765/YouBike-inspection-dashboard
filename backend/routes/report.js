@@ -120,8 +120,17 @@ const calculateMonthlyScores = async (month) => {
           let pureDate = 'unknown_date';
           if (row.created_at) {
             const d = new Date(row.created_at);
-            pureDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; 
+            
+            // 🌟 1. 時區校正：加 8 小時 (把資料庫的 UTC 轉回台灣時間)
+            d.setHours(d.getHours() + 8);
+            
+            // 🌟 2. 邏輯換日線：減 4 小時 (避免台中 23:58~00:08 跨夜巡檢被算成兩次)
+            // 這樣 00:05 就算作昨天的 20:05，完全避開跨日切割！
+            d.setHours(d.getHours() - 4); 
+            
+            pureDate = `\({d.getFullYear()}-\){String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; 
           }
+          
           const eventKey = `${row.station_name}_${pureDate}_${row.created_by}`;
           if (!statPool.inspection_events.has(eventKey)) {
             statPool.inspection_events.add(eventKey);
@@ -595,6 +604,34 @@ router.get('/cities', async (req, res) => {
     const [rows] = await db.query(sql, params);
     res.json({ success: true, data: rows.map(r => r.name) });
   } catch (error) {
+    res.status(500).json({ success: false });
+  }
+});
+
+// 🌟 [新增] 取得使用者「有權限的實際縣市名稱」(供明細匯出過濾使用)
+router.get('/regions', async (req, res) => {
+  const { user_id, role_level } = req.query;
+  try {
+    // 透過 JOIN 把 report_group_id 轉換回實際的 台北市、新北市
+    let sql = `
+      SELECT DISTINCT r.name 
+      FROM regions r
+      WHERE r.status = 'ACTIVE'
+    `;
+    let params = [];
+    
+    // 如果不是高階主管，就要去 user_view_regions 核對權限
+    if (!role_level || parseInt(role_level) < 90) {
+      sql += ` AND r.report_group_id IN (SELECT report_group_id FROM user_view_regions WHERE user_id = ?)`;
+      params.push(user_id);
+    }
+    
+    const [rows] = await db.query(sql, params);
+    
+    // 回傳純字串陣列，例如：['台北市', '新北市', '桃園市']
+    res.json({ success: true, data: rows.map(r => r.name) });
+  } catch (error) {
+    console.error('取得授權地區失敗:', error);
     res.status(500).json({ success: false });
   }
 });

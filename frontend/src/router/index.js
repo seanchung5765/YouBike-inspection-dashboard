@@ -26,25 +26,31 @@ const routes = [
         name: 'Dashboard',
         component: () => import('../views/Dashboard.vue'), 
       },
-      // 📂 1. 權限管理 (只限高階主管 role_level >= 90)
+      // 📂 1. 權限管理
       {
         path: 'admin',
-        meta: { requiredRoleLevel: 90 }, // 🌟 整個 admin 資料夾都被鎖起來
+        // 🌟 1. 將大門降到 50，讓中階管理層進得來
+        meta: { requiredRoleLevel: 50 }, 
         children: [
           {
             path: 'unit-management',
             name: 'unit-management',
             component: () => import('../views/admin/UnitManagement.vue'), 
+            // 🌟 2. 針對單位管理單獨上鎖 (90)
+            meta: { requiredRoleLevel: 90 } 
           },
           {
             path: 'user-management',
             name: 'user-management',
             component: () => import('../views/admin/UserManagement.vue'), 
+            // 🌟 3. 針對人員管理單獨上鎖 (90)
+            meta: { requiredRoleLevel: 90 } 
           },
           {
             path: 'view-auth',
             name: 'view-auth',
-            component: () => import('../views/admin/ViewAuthView.vue'), 
+            component: () => import('../views/admin/ViewAuthView.vue'),
+            // 🌟 4. 閱覽管理這裡不用特別設，因為它會繼承外層的 50 權限
           }
         ]
       },

@@ -10,7 +10,7 @@ const getPreviousMonth = (month) => {
 }
 
 // ==========================================
-// 🎨 共用樣式定義產生器
+// 🎨 共用樣式定義產生器與格式化工具
 // ==========================================
 const getBaseStyle = (fontSize = 16) => ({
   font: { name: "Arial", sz: fontSize }, 
@@ -22,6 +22,13 @@ const getBaseStyle = (fontSize = 16) => ({
     right: { style: "thin", color: { auto: 1 } }
   }
 });
+
+// 🌟 千分號格式化函數
+const formatNumber = (num) => {
+  if (num === '-' || num === null || num === undefined || num === '') return '-';
+  const n = Number(num);
+  return isNaN(n) ? num : n.toLocaleString('en-US');
+};
 
 const buildGroupMerges = (rowIndex, dataSummary, headers) => {
   const rowMerges = [];
@@ -79,22 +86,27 @@ export const exportMonthlyReportToExcel = async (month) => {
       return;
     }
 
-    const cityHeaders = currSummary
-      .filter(r => r.city !== '總計' && allowedCities.includes(r.city))
+    // 🌟 拆分兩種縣市清單：
+    // 1. 全域清單 (用來產生前 4 張不受權限限制的總表)
+    const allCityHeaders = currSummary
+      .filter(r => r.city !== '總計')
       .map(r => r.city);
 
-    if (cityHeaders.length === 0) {
-      ElMessage.error('您目前沒有任何縣市的閱覽權限，無法匯出報表。');
+    // 2. 授權清單 (用來決定要產生哪些細部明細表)
+    const allowedCityHeaders = allCityHeaders.filter(c => allowedCities.includes(c));
+
+    if (allCityHeaders.length === 0) {
+      ElMessage.error('查無任何縣市資料，無法匯出報表。');
       loadingInstance.close();
       return;
     }
 
-    // 🌟 併發拉取 5 個月內所有縣市的缺失明細
+    // 🌟 併發拉取 5 個月內「所有」縣市的缺失明細
     const allIssues = {};
-    cityHeaders.forEach(c => allIssues[c] = {});
+    allCityHeaders.forEach(c => allIssues[c] = {});
     
     const issuePromises = [];
-    for (let c of cityHeaders) {
+    for (let c of allCityHeaders) {
       for (let m of monthsToFetch) {
         issuePromises.push(
           getCityIssuesAPI(m, c, currentUser.id).then(res => {
@@ -114,9 +126,11 @@ export const exportMonthlyReportToExcel = async (month) => {
       const row = dataArr.find(r => r.city === city);
       return row && row[key] !== null && row[key] !== undefined ? row[key] : '-';
     };
+    // 🌟 支援千分號的取值小幫手
+    const getCommaVal = (dataArr, city, key) => formatNumber(getVal(dataArr, city, key));
     const getUnitVal = (dataArr, city, key, unit) => {
       const val = getVal(dataArr, city, key);
-      return val !== '-' ? `${val}${unit}` : '-';
+      return val !== '-' ? `${formatNumber(val)}${unit}` : '-';
     };
     const getRoundedVal = (dataArr, city, key) => {
       const val = getVal(dataArr, city, key);
@@ -127,49 +141,50 @@ export const exportMonthlyReportToExcel = async (month) => {
       return val !== '-' ? `${parseFloat(val).toFixed(1)}%` : '-';
     };
 
-    const standardColWidths = [30, ...cityHeaders.map(() => 16), 22];
-
     // ==========================================
-    // 📝 Sheet 1: 成績與主管自評
+    // 📝 Sheet 1: 成績與主管自評 (不分權限全顯示)
     // ==========================================
     const summaryTitle = m0.replace('-', '/'); 
     
     const summaryAoA = [
-      [summaryTitle, ...cityHeaders, '總計/平均值'],
-      ['施測站數', ...cityHeaders.map(c => getVal(currSummary, c, 'tested_stations')), getVal(currSummary, '總計', 'tested_stations')],
-      ['施測車輛數', ...cityHeaders.map(c => getVal(currSummary, c, 'total_bikes')), getVal(currSummary, '總計', 'total_bikes')],
-      ['2.0E施測車輛數', ...cityHeaders.map(c => getVal(currSummary, c, 'ebikes_count')), getVal(currSummary, '總計', 'ebikes_count')],
-      ['前後胎壓未達標準 (輛)', ...cityHeaders.map(c => getUnitVal(currSummary, c, 'tire_fail_count', '輛')), getUnitVal(currSummary, '總計', 'tire_fail_count', '輛')],
-      ['前後胎壓未達標準 (%)', ...cityHeaders.map(c => getFixedRateVal1(currSummary, c, 'tire_fail_rate')), getFixedRateVal1(currSummary, '總計', 'tire_fail_rate')],
-      ['場站妥善度', ...cityHeaders.map(c => getRoundedVal(currSummary, c, 'pure_station')), getRoundedVal(currSummary, '總計', 'pure_station')],
-      ['自行車外觀與重要標示', ...cityHeaders.map(c => getRoundedVal(currSummary, c, 'pure_appearance')), getRoundedVal(currSummary, '總計', 'pure_appearance')],
-      ['自行車重要機能', ...cityHeaders.map(c => getRoundedVal(currSummary, c, 'pure_function')), getRoundedVal(currSummary, '總計', 'pure_function')],
-      ['一級維護率(EMS紀錄)', ...cityHeaders.map(c => getFixedRateVal1(currSummary, c, 'maintenance_rate')), getFixedRateVal1(currSummary, '總計', 'maintenance_rate')],
-      ['可動率', ...cityHeaders.map(c => getFixedRateVal1(currSummary, c, 'availability_rate')), getFixedRateVal1(currSummary, '總計', 'availability_rate')],
-      [`${m0}`, ...cityHeaders.map(c => getVal(currSummary, c, 'final_score')), getVal(currSummary, '總計', 'final_score')],
-      ['', ...cityHeaders.map(c => getVal(currSummary, c, 'group_final_score')), ''], 
-      [`${m1}`, ...cityHeaders.map(c => getVal(prevSummary, c, 'final_score')), getVal(prevSummary, '總計', 'final_score')],
-      ['', ...cityHeaders.map(c => getVal(prevSummary, c, 'group_final_score')), ''], 
-      ['主管測評', ...cityHeaders.map(c => getVal(currSummary, c, 'ops_final_score')), '-']
+      [summaryTitle, ...allCityHeaders, '總計/平均值'],
+      ['施測站數', ...allCityHeaders.map(c => getCommaVal(currSummary, c, 'tested_stations')), getCommaVal(currSummary, '總計', 'tested_stations')],
+      ['施測車輛數', ...allCityHeaders.map(c => getCommaVal(currSummary, c, 'total_bikes')), getCommaVal(currSummary, '總計', 'total_bikes')],
+      ['2.0E施測車輛數', ...allCityHeaders.map(c => getCommaVal(currSummary, c, 'ebikes_count')), getCommaVal(currSummary, '總計', 'ebikes_count')],
+      ['前後胎壓未達標準 (輛)', ...allCityHeaders.map(c => getUnitVal(currSummary, c, 'tire_fail_count', '輛')), getUnitVal(currSummary, '總計', 'tire_fail_count', '輛')],
+      ['前後胎壓未達標準 (%)', ...allCityHeaders.map(c => getFixedRateVal1(currSummary, c, 'tire_fail_rate')), getFixedRateVal1(currSummary, '總計', 'tire_fail_rate')],
+      ['場站妥善度', ...allCityHeaders.map(c => getRoundedVal(currSummary, c, 'pure_station')), getRoundedVal(currSummary, '總計', 'pure_station')],
+      ['自行車外觀與重要標示', ...allCityHeaders.map(c => getRoundedVal(currSummary, c, 'pure_appearance')), getRoundedVal(currSummary, '總計', 'pure_appearance')],
+      ['自行車重要機能', ...allCityHeaders.map(c => getRoundedVal(currSummary, c, 'pure_function')), getRoundedVal(currSummary, '總計', 'pure_function')],
+      ['一級維護率(EMS紀錄)', ...allCityHeaders.map(c => getFixedRateVal1(currSummary, c, 'maintenance_rate')), getFixedRateVal1(currSummary, '總計', 'maintenance_rate')],
+      ['可動率', ...allCityHeaders.map(c => getFixedRateVal1(currSummary, c, 'availability_rate')), getFixedRateVal1(currSummary, '總計', 'availability_rate')],
+      [`${m0}`, ...allCityHeaders.map(c => getVal(currSummary, c, 'final_score')), getVal(currSummary, '總計', 'final_score')],
+      ['', ...allCityHeaders.map(c => getVal(currSummary, c, 'group_final_score')), ''], 
+      [`${m1}`, ...allCityHeaders.map(c => getVal(prevSummary, c, 'final_score')), getVal(prevSummary, '總計', 'final_score')],
+      ['', ...allCityHeaders.map(c => getVal(prevSummary, c, 'group_final_score')), ''], 
+      ['主管測評', ...allCityHeaders.map(c => getVal(currSummary, c, 'ops_final_score')), '-']
     ];
     
-    const targetColIdx = cityHeaders.length + 3; 
+    const targetColIdx = allCityHeaders.length + 3; 
     while(summaryAoA[11].length <= targetColIdx + 1) summaryAoA[11].push('');
     while(summaryAoA[15].length <= targetColIdx + 1) summaryAoA[15].push('');
     summaryAoA[11][targetColIdx] = '低於92分';
     summaryAoA[15][targetColIdx] = '高出施測分數5分以上';
 
     const wsSummary = XLSX.utils.aoa_to_sheet(summaryAoA);
-    wsSummary['!cols'] = standardColWidths.map(w => ({ wch: w }));
+    // 🌟 幫第一頁右側的警示框配置更寬的欄位寬度 (25)
+    const summaryColWidths = [30, ...allCityHeaders.map(() => 16), 22, 5, 25, 25];
+    wsSummary['!cols'] = summaryColWidths.map(w => ({ wch: w }));
+    
     wsSummary['!merges'] = [
       { s: { r: 11, c: 0 }, e: { r: 12, c: 0 } }, 
       { s: { r: 13, c: 0 }, e: { r: 14, c: 0 } }, 
-      { s: { r: 11, c: cityHeaders.length + 1 }, e: { r: 12, c: cityHeaders.length + 1 } }, 
-      { s: { r: 13, c: cityHeaders.length + 1 }, e: { r: 14, c: cityHeaders.length + 1 } }, 
+      { s: { r: 11, c: allCityHeaders.length + 1 }, e: { r: 12, c: allCityHeaders.length + 1 } }, 
+      { s: { r: 13, c: allCityHeaders.length + 1 }, e: { r: 14, c: allCityHeaders.length + 1 } }, 
       { s: { r: 11, c: targetColIdx }, e: { r: 11, c: targetColIdx + 1 } }, 
       { s: { r: 15, c: targetColIdx }, e: { r: 15, c: targetColIdx + 1 } }, 
-      ...buildGroupMerges(12, currSummary, cityHeaders), 
-      ...buildGroupMerges(14, prevSummary, cityHeaders)  
+      ...buildGroupMerges(12, currSummary, allCityHeaders), 
+      ...buildGroupMerges(14, prevSummary, allCityHeaders)  
     ];
 
     for(let r = 0; r < summaryAoA.length; r++) {
@@ -180,23 +195,23 @@ export const exportMonthlyReportToExcel = async (month) => {
 
         if (r === 0) {
           s.font.bold = true;
-          if (c > 0 && c <= cityHeaders.length + 1) s.fill = { fgColor: { rgb: "FDE9D9" } };
+          if (c > 0 && c <= allCityHeaders.length + 1) s.fill = { fgColor: { rgb: "FDE9D9" } };
         }
-        if (r === 5 && c > 0 && c <= cityHeaders.length) s.font.color = { rgb: "FF0000" };
+        if (r === 5 && c > 0 && c <= allCityHeaders.length) s.font.color = { rgb: "FF0000" };
         if (r === 5) s.border.bottom = { style: "medium", color: { rgb: "FF0000" } };
         if (r === 6) s.border.top = { style: "medium", color: { rgb: "FF0000" } };
         if (r === 8) s.border.bottom = { style: "medium", color: { rgb: "FF0000" } };
         if (r === 9) s.border.top = { style: "medium", color: { rgb: "FF0000" } };
 
-        if (r >= 6 && r <= 8 && c > 0 && c <= cityHeaders.length) {
+        if (r >= 6 && r <= 8 && c > 0 && c <= allCityHeaders.length) {
           const val = parseFloat(wsSummary[cellRef].v);
-          const avgVal = parseFloat(summaryAoA[r][cityHeaders.length + 1]);
+          const avgVal = parseFloat(summaryAoA[r][allCityHeaders.length + 1]);
           if (!isNaN(val) && !isNaN(avgVal) && val < avgVal) {
             s.font.color = { rgb: "FF0000" };
             s.fill = { fgColor: { rgb: "CCC0DA" } };
           }
         }
-        if ((r === 9 || r === 10) && c > 0 && c <= cityHeaders.length) {
+        if ((r === 9 || r === 10) && c > 0 && c <= allCityHeaders.length) {
           const val = parseFloat(String(wsSummary[cellRef].v).replace('%', ''));
           const threshold = r === 9 ? 90 : 99;
           if (!isNaN(val) && val < threshold) {
@@ -205,9 +220,9 @@ export const exportMonthlyReportToExcel = async (month) => {
           }
         }
         if (r >= 11 && r <= 14) {
-          if (c <= cityHeaders.length + 1) {
+          if (c <= allCityHeaders.length + 1) {
             s.font.bold = true;
-            if (c > 0 && c <= cityHeaders.length) {
+            if (c > 0 && c <= allCityHeaders.length) {
               if (r === 11 || r === 13) {
                 const val = parseFloat(wsSummary[cellRef].v);
                 if (!isNaN(val) && val < 92) {
@@ -222,7 +237,7 @@ export const exportMonthlyReportToExcel = async (month) => {
             if (r === 14) s.border.bottom = { style: "thick", color: { rgb: "000000" } };
           }
         }
-        if (r === 15 && c > 0 && c <= cityHeaders.length) {
+        if (r === 15 && c > 0 && c <= allCityHeaders.length) {
           s.fill = { fgColor: { rgb: "FCD5B4" } };
           const opsScore = parseFloat(wsSummary[cellRef].v);
           const finalScore = parseFloat(summaryAoA[11][c]); 
@@ -251,28 +266,43 @@ export const exportMonthlyReportToExcel = async (month) => {
     XLSX.utils.book_append_sheet(wb, wsSummary, "成績與主管自評");
 
     // ==========================================
-    // 📝 Sheet 2: 可動率 & Sheet 3: 一級維護
+    // 📝 Sheet 2: 可動率
     // ==========================================
     const availAoA = [
-      [m0, ...cityHeaders, '總計'],
-      ['抽驗場站數', ...cityHeaders.map(c => getVal(currSummary, c, 'tested_stations')), getVal(currSummary, '總計', 'tested_stations')],
-      ['抽驗總在站車輛數', ...cityHeaders.map(c => getVal(currSummary, c, 'total_docked_bikes')), getVal(currSummary, '總計', 'total_docked_bikes')],
-      ['無法租借車輛數', ...cityHeaders.map(c => getVal(currSummary, c, 'unrentable_bikes')), getVal(currSummary, '總計', 'unrentable_bikes')],
-      ['在站車輛可動率', ...cityHeaders.map(c => getFixedRateVal1(currSummary, c, 'availability_rate_calc')), getFixedRateVal1(currSummary, '總計', 'availability_rate_calc')],
+      [m0, ...allCityHeaders, '總計'],
+      ['抽驗場站數', ...allCityHeaders.map(c => getCommaVal(currSummary, c, 'tested_stations')), getCommaVal(currSummary, '總計', 'tested_stations')],
+      ['抽驗總在站車輛數', ...allCityHeaders.map(c => getCommaVal(currSummary, c, 'total_docked_bikes')), getCommaVal(currSummary, '總計', 'total_docked_bikes')],
+      ['無法租借車輛數', ...allCityHeaders.map(c => getCommaVal(currSummary, c, 'unrentable_bikes')), getCommaVal(currSummary, '總計', 'unrentable_bikes')],
+      ['在站車輛可動率', ...allCityHeaders.map(c => getFixedRateVal1(currSummary, c, 'availability_rate_calc')), getFixedRateVal1(currSummary, '總計', 'availability_rate_calc')],
       [], 
-      [m1, ...cityHeaders, '總計'],
-      ['抽驗場站數', ...cityHeaders.map(c => getVal(prevSummary, c, 'tested_stations')), getVal(prevSummary, '總計', 'tested_stations')],
-      ['抽驗總在站車輛數', ...cityHeaders.map(c => getVal(prevSummary, c, 'total_docked_bikes')), getVal(prevSummary, '總計', 'total_docked_bikes')],
-      ['無法租借車輛數', ...cityHeaders.map(c => getVal(prevSummary, c, 'unrentable_bikes')), getVal(prevSummary, '總計', 'unrentable_bikes')],
-      ['在站車輛可動率', ...cityHeaders.map(c => getFixedRateVal1(prevSummary, c, 'availability_rate_calc')), getFixedRateVal1(prevSummary, '總計', 'availability_rate_calc')]
+      [m1, ...allCityHeaders, '總計'],
+      ['抽驗場站數', ...allCityHeaders.map(c => getCommaVal(prevSummary, c, 'tested_stations')), getCommaVal(prevSummary, '總計', 'tested_stations')],
+      ['抽驗總在站車輛數', ...allCityHeaders.map(c => getCommaVal(prevSummary, c, 'total_docked_bikes')), getCommaVal(prevSummary, '總計', 'total_docked_bikes')],
+      ['無法租借車輛數', ...allCityHeaders.map(c => getCommaVal(prevSummary, c, 'unrentable_bikes')), getCommaVal(prevSummary, '總計', 'unrentable_bikes')],
+      ['在站車輛可動率', ...allCityHeaders.map(c => getFixedRateVal1(prevSummary, c, 'availability_rate_calc')), getFixedRateVal1(prevSummary, '總計', 'availability_rate_calc')]
     ];
+    
+    // 🌟 在第 16 列補上「可動率對照表」
+    while (availAoA.length < 15) availAoA.push([]);
+    const availLegendStartIdx = availAoA.length;
+    availAoA.push(['可動率', '分值']);
+    availAoA.push(['未達91%', '-5']);
+    availAoA.push(['未達93%~91%', '-4']);
+    availAoA.push(['未達95%~93%', '-3']);
+    availAoA.push(['未達97%~95%', '-2']);
+    availAoA.push(['未達99%~97%', '-1']);
+    availAoA.push(['100%~99%', '0']);
+
+    const standardColWidths = [30, ...allCityHeaders.map(() => 16), 22];
     const wsAvail = XLSX.utils.aoa_to_sheet(availAoA);
     wsAvail['!cols'] = standardColWidths.map(w => ({ wch: w }));
+    
     for(let r = 0; r < availAoA.length; r++) {
       for(let c = 0; c < availAoA[r].length; c++) {
         const cellRef = XLSX.utils.encode_cell({r, c});
         if(!wsAvail[cellRef]) continue;
         let s = getBaseStyle(16);
+        
         if (r === 0 || r === 6 || r === 2 || r === 8) s.font.bold = true;
         if (r === 4 || r === 10) {
           s.border.top = { style: "thick", color: { rgb: "000000" } };
@@ -282,28 +312,56 @@ export const exportMonthlyReportToExcel = async (month) => {
             if (!isNaN(val) && val < 99) s.font.color = { rgb: "C00000" };
           }
         }
+
+        // 🌟 對照表的樣式設定
+        if (r >= availLegendStartIdx && r <= availLegendStartIdx + 6 && c <= 1) {
+          s.border = {
+            top: { style: "thin", color: { rgb: "000000" } }, bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } }, right: { style: "thin", color: { rgb: "000000" } }
+          };
+          if (r === availLegendStartIdx) { // 表頭
+             s.fill = { patternType: "solid", fgColor: { rgb: "E7E6E6" } };
+             s.font.bold = true;
+          }
+        }
+        
         wsAvail[cellRef].s = s;
       }
     }
     XLSX.utils.book_append_sheet(wb, wsAvail, "可動率");
 
+    // ==========================================
+    // 📝 Sheet 3: 一級維護
+    // ==========================================
     const maintAoA = [
-      [m0, ...cityHeaders, '總計'],
-      ['總營運車輛數', ...cityHeaders.map(c => getVal(currSummary, c, 'total_fleet_bikes')), getVal(currSummary, '總計', 'total_fleet_bikes')],
-      ['事故車輛數', ...cityHeaders.map(c => getVal(currSummary, c, 'accident_bikes')), getVal(currSummary, '總計', 'accident_bikes')],
-      ['一級維護紀錄數', ...cityHeaders.map(c => getVal(currSummary, c, 'maintenance_records')), getVal(currSummary, '總計', 'maintenance_records')],
-      ['一級維護率', ...cityHeaders.map(c => getFixedRateVal1(currSummary, c, 'maintenance_rate')), getFixedRateVal1(currSummary, '總計', 'maintenance_rate')],
-      ['較上個月變動', ...cityHeaders.map(c => {
+      [m0, ...allCityHeaders, '總計'],
+      ['總營運車輛數', ...allCityHeaders.map(c => getCommaVal(currSummary, c, 'total_fleet_bikes')), getCommaVal(currSummary, '總計', 'total_fleet_bikes')],
+      ['事故車輛數', ...allCityHeaders.map(c => getCommaVal(currSummary, c, 'accident_bikes')), getCommaVal(currSummary, '總計', 'accident_bikes')],
+      ['一級維護紀錄數', ...allCityHeaders.map(c => getCommaVal(currSummary, c, 'maintenance_records')), getCommaVal(currSummary, '總計', 'maintenance_records')],
+      ['一級維護率', ...allCityHeaders.map(c => getFixedRateVal1(currSummary, c, 'maintenance_rate')), getFixedRateVal1(currSummary, '總計', 'maintenance_rate')],
+      ['較上個月變動', ...allCityHeaders.map(c => {
          const diff = parseFloat(getVal(currSummary, c, 'maintenance_rate')) - parseFloat(getVal(prevSummary, c, 'maintenance_rate') || 0);
          return isNaN(diff) ? '-' : `${diff.toFixed(1)}%`;
       }), '-'],
       [], 
-      [m1, ...cityHeaders, '總計'],
-      ['總營運車輛數', ...cityHeaders.map(c => getVal(prevSummary, c, 'total_fleet_bikes')), getVal(prevSummary, '總計', 'total_fleet_bikes')],
-      ['事故車輛數', ...cityHeaders.map(c => getVal(prevSummary, c, 'accident_bikes')), getVal(prevSummary, '總計', 'accident_bikes')],
-      ['一級維護紀錄數', ...cityHeaders.map(c => getVal(prevSummary, c, 'maintenance_records')), getVal(prevSummary, '總計', 'maintenance_records')],
-      ['一級維護率', ...cityHeaders.map(c => getFixedRateVal1(prevSummary, c, 'maintenance_rate')), getFixedRateVal1(prevSummary, '總計', 'maintenance_rate')]
+      [m1, ...allCityHeaders, '總計'],
+      ['總營運車輛數', ...allCityHeaders.map(c => getCommaVal(prevSummary, c, 'total_fleet_bikes')), getCommaVal(prevSummary, '總計', 'total_fleet_bikes')],
+      ['事故車輛數', ...allCityHeaders.map(c => getCommaVal(prevSummary, c, 'accident_bikes')), getCommaVal(prevSummary, '總計', 'accident_bikes')],
+      ['一級維護紀錄數', ...allCityHeaders.map(c => getCommaVal(prevSummary, c, 'maintenance_records')), getCommaVal(prevSummary, '總計', 'maintenance_records')],
+      ['一級維護率', ...allCityHeaders.map(c => getFixedRateVal1(prevSummary, c, 'maintenance_rate')), getFixedRateVal1(prevSummary, '總計', 'maintenance_rate')]
     ];
+    
+    // 🌟 在第 16 列補上「一級維護率對照表」
+    while (maintAoA.length < 15) maintAoA.push([]);
+    const maintLegendStartIdx = maintAoA.length;
+    maintAoA.push(['一級維護率', '分值']);
+    maintAoA.push(['未達70%', '-5']);
+    maintAoA.push(['未達75%~70%', '-4']);
+    maintAoA.push(['未達80%~75%', '-3']);
+    maintAoA.push(['未達85%~80%', '-2']);
+    maintAoA.push(['未達90%~85%', '-1']);
+    maintAoA.push(['100%~90%', '0']);
+
     const wsMaint = XLSX.utils.aoa_to_sheet(maintAoA);
     wsMaint['!cols'] = standardColWidths.map(w => ({ wch: w }));
     for(let r = 0; r < maintAoA.length; r++) {
@@ -317,13 +375,26 @@ export const exportMonthlyReportToExcel = async (month) => {
           s.border.bottom = { style: "thick", color: { rgb: "000000" } };
           s.font.bold = true;
         }
-        if (r === 5 && c > 0 && c <= cityHeaders.length) {
+        if (r === 5 && c > 0 && c <= allCityHeaders.length) {
           const val = parseFloat(String(wsMaint[cellRef].v).replace('%', ''));
           if (!isNaN(val)) {
             if (val < 0) s.font.color = { rgb: "FF0000" };
             else if (val > 5) s.font.color = { rgb: "00B0F0" }; 
           }
         }
+        
+        // 🌟 對照表的樣式設定
+        if (r >= maintLegendStartIdx && r <= maintLegendStartIdx + 6 && c <= 1) {
+          s.border = {
+            top: { style: "thin", color: { rgb: "000000" } }, bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } }, right: { style: "thin", color: { rgb: "000000" } }
+          };
+          if (r === maintLegendStartIdx) {
+             s.fill = { patternType: "solid", fgColor: { rgb: "E7E6E6" } };
+             s.font.bold = true;
+          }
+        }
+
         wsMaint[cellRef].s = s;
       }
     }
@@ -357,11 +428,13 @@ export const exportMonthlyReportToExcel = async (month) => {
     const m1_display = parseInt(m1.split('-')[1], 10);
     const m2_display = parseInt(m2.split('-')[1], 10);
 
+    // 🌟 幫第一列右邊加上圖例文字 (放在索引 14 的位置)
     issueAoA.push([
       '地區/月份', 
       m0_display, '', '', '', 
       m1_display, '', '', '', 
-      m2_display, '', '', ''
+      m2_display, '', '', '',
+      '', '▲：當月新增問題點    文字標紅:連續三個月10% ↑'
     ]);
     issueAoA.push([
       '', 
@@ -374,14 +447,15 @@ export const exportMonthlyReportToExcel = async (month) => {
       { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, 
       { s: { r: 0, c: 1 }, e: { r: 0, c: 4 } }, 
       { s: { r: 0, c: 5 }, e: { r: 0, c: 8 } }, 
-      { s: { r: 0, c: 9 }, e: { r: 0, c: 12 } }
+      { s: { r: 0, c: 9 }, e: { r: 0, c: 12 } },
+      { s: { r: 0, c: 14 }, e: { r: 0, c: 18 } } // 🌟 圖例儲存格合併
     ];
 
     let rowIdx = 2;
     const allCityDicts = {}; 
     const cityColors = ["F4CCCC", "D9EAD3", "93C47D", "6AA84F", "FCE5CD", "F9CB9C", "D0E0E3", "A4C2F4", "6D9EEB", "3C78D8"];
 
-    cityHeaders.forEach((city, cityIndex) => {
+    allCityHeaders.forEach((city, cityIndex) => {
       const d0 = toDict(allIssues[city][m0]);
       const d1 = toDict(allIssues[city][m1]);
       const d2 = toDict(allIssues[city][m2]);
@@ -404,19 +478,20 @@ export const exportMonthlyReportToExcel = async (month) => {
         if (r < list0.length) {
           const [name, item] = list0[r];
           const diff = getDiffDisplay(item, d1[name]);
-          rowData.push(name, item.count, `${Math.round(item.rate)}%`, diff.text);
+          // 🌟 異常數量補上千分號
+          rowData.push(name, formatNumber(item.count), `${Math.round(item.rate)}%`, diff.text);
         } else rowData.push('', '', '', '');
 
         if (r < list1.length) {
           const [name, item] = list1[r];
           const diff = getDiffDisplay(item, d2[name]);
-          rowData.push(name, item.count, `${Math.round(item.rate)}%`, diff.text);
+          rowData.push(name, formatNumber(item.count), `${Math.round(item.rate)}%`, diff.text);
         } else rowData.push('', '', '', '');
 
         if (r < list2.length) {
           const [name, item] = list2[r];
           const diff = getDiffDisplay(item, d3[name]);
-          rowData.push(name, item.count, `${Math.round(item.rate)}%`, diff.text);
+          rowData.push(name, formatNumber(item.count), `${Math.round(item.rate)}%`, diff.text);
         } else rowData.push('', '', '', '');
 
         issueAoA.push(rowData);
@@ -427,7 +502,8 @@ export const exportMonthlyReportToExcel = async (month) => {
 
     const wsIssue = XLSX.utils.aoa_to_sheet(issueAoA);
     wsIssue['!merges'] = issueMerges;
-    wsIssue['!cols'] = [12, 45, 12, 12, 12, 45, 12, 12, 12, 45, 12, 12, 12].map(w => ({ wch: w }));
+    // 預留更多空間給右側圖例
+    wsIssue['!cols'] = [12, 45, 12, 12, 12, 45, 12, 12, 12, 45, 12, 12, 12, 5, 45].map(w => ({ wch: w }));
     wsIssue['!rows'] = [{ hpt: 40 }];
 
     for (const key in wsIssue) {
@@ -437,52 +513,70 @@ export const exportMonthlyReportToExcel = async (month) => {
       const row = parseInt(key.replace(/[A-Z]/g, '')) - 1; 
       const val = wsIssue[key].v;
 
-      if (row >= 2 && (col === 1 || col === 5 || col === 9)) s.alignment.horizontal = 'left';
-
-      if (row === 0 || row === 1) {
-        s.font.bold = true;
-        s.font.sz = 14;
-        s.fill = { fgColor: { rgb: "FDE9D9" } };
-        s.border.bottom = { style: "thick", color: { rgb: "000000" } };
-        if (row === 0 && (col === 1 || col === 5 || col === 9)) s.font.sz = 20;
-      }
-
-      if (col === 4 || col === 8 || col === 12) {
-        s.border.right = { style: "thick", color: { rgb: "000000" } };
-      }
-
-      if (row >= 2) {
-        const cityIndex = Math.floor((row - 2) / 10);
-        if (col === 0) {
+      // 🌟 問題點圖例紅色粗體靠左對齊設定
+      if ((row === 0 || row === 1) && col >= 13) {
+        s.border = {}; // 右側圖例區塊不需要框線，也不要套用底色
+        if (row === 0 && col === 14) {
+          s.font.color = { rgb: "FF0000" };
           s.font.bold = true;
-          s.font.sz = 18;
-          s.fill = { fgColor: { rgb: cityColors[cityIndex % cityColors.length] || "FFFFFF" } };
-          s.border.bottom = { style: "thin", color: { rgb: "000000" } };
-          if ((row - 1) % 10 === 0) s.border.bottom = { style: "thick", color: { rgb: "000000" } };
+          s.alignment = { horizontal: 'left', vertical: 'center' };
         }
-        
-        if ((row - 1) % 10 === 0) {
-          s.border.bottom = { style: "thick", color: { rgb: "000000" } };
-        }
+      } else {
+        if (row >= 2 && (col === 1 || col === 5 || col === 9)) s.alignment.horizontal = 'left';
 
-        const currentCity = cityHeaders[cityIndex];
-        const dicts = allCityDicts[currentCity];
+        if (row === 0 || row === 1) {
+          s.font.bold = true;
+          s.font.sz = 14;
+          s.fill = { fgColor: { rgb: "FDE9D9" } };
+          s.border.bottom = { style: "thick", color: { rgb: "000000" } };
+          if (row === 0 && (col === 1 || col === 5 || col === 9)) s.font.sz = 20;
+        }
 
         if (col === 4 || col === 8 || col === 12) {
-           if (val === '▲') s.font.color = { rgb: "C00000" };
-           else if (String(val).includes('-')) s.font.color = { rgb: "00B050" };
-           else if (parseInt(val) > 0) s.font.color = { rgb: "C00000" };
+          s.border.right = { style: "thick", color: { rgb: "000000" } };
         }
 
-        if (col === 1 || col === 5 || col === 9) {
-           const monthIdx = col === 1 ? 0 : (col === 5 ? 1 : 2);
-           const dC = dicts[monthIdx];
-           const dP = dicts[monthIdx + 1];
-           const dPP = dicts[monthIdx + 2];
-           
-           if (dC[val]?.rate >= 10 && dP && dP[val]?.rate >= 10 && dPP && dPP[val]?.rate >= 10) {
-              s.font.color = { rgb: "FF0000" };
-           }
+        if (row >= 2) {
+          const cityIndex = Math.floor((row - 2) / 10);
+          if (col === 0) {
+            s.font.bold = true;
+            s.font.sz = 18;
+            
+            const rawColor = cityColors[cityIndex % cityColors.length] || "FFFFFF";
+            const safeColor = rawColor.replace('#', ''); 
+            
+            s.fill = { 
+              patternType: "solid",
+              fgColor: { rgb: safeColor } 
+            };
+            
+            s.border.bottom = { style: "thin", color: { rgb: "000000" } };
+            if ((row - 1) % 10 === 0) s.border.bottom = { style: "thick", color: { rgb: "000000" } };
+          }
+          
+          if ((row - 1) % 10 === 0 && col < 13) {
+            s.border.bottom = { style: "thick", color: { rgb: "000000" } };
+          }
+
+          const currentCity = allCityHeaders[cityIndex];
+          const dicts = allCityDicts[currentCity];
+
+          if (col === 4 || col === 8 || col === 12) {
+             if (val === '▲') s.font.color = { rgb: "C00000" };
+             else if (String(val).includes('-')) s.font.color = { rgb: "00B050" };
+             else if (parseInt(val) > 0) s.font.color = { rgb: "C00000" };
+          }
+
+          if (col === 1 || col === 5 || col === 9) {
+             const monthIdx = col === 1 ? 0 : (col === 5 ? 1 : 2);
+             const dC = dicts[monthIdx];
+             const dP = dicts[monthIdx + 1];
+             const dPP = dicts[monthIdx + 2];
+             
+             if (dC[val]?.rate >= 10 && dP && dP[val]?.rate >= 10 && dPP && dPP[val]?.rate >= 10) {
+                s.font.color = { rgb: "FF0000" };
+             }
+          }
         }
       }
       wsIssue[key].s = s;
@@ -491,20 +585,19 @@ export const exportMonthlyReportToExcel = async (month) => {
 
 
     // ==========================================
-    // 🚲 Sheet 5+: 各縣市明細
+    // 🚲 Sheet 5+: 各縣市明細 (這裡嚴格控管：只產生有權限的縣市)
     // ==========================================
     const roundInt = (v) => (v !== undefined && v !== null && v !== '-') ? Math.round(parseFloat(v)) : '-';
     const round1Dec = (v) => (v !== undefined && v !== null && v !== '-') ? parseFloat(v).toFixed(1) : '-';
     const round2Dec = (v) => (v !== undefined && v !== null && v !== '-') ? parseFloat(v).toFixed(2) : '-';
 
-    cityHeaders.forEach((city) => {
+    allowedCityHeaders.forEach((city) => {
       const issueRes = allIssues[city][m0];
       if (!issueRes) return;
 
       const { A, B, C, summary } = issueRes;
       const citySummary = currSummary.find(r => r.city === city) || {};
       
-      // 🌟 嚴謹處理同分可共存的前五名門檻
       const allFailCounts = [...A, ...B, ...C]
         .map(x => parseInt(x.fail_count))
         .filter(val => !isNaN(val) && val > 0)
@@ -580,11 +673,9 @@ export const exportMonthlyReportToExcel = async (month) => {
         const row = parseInt(key.replace(/[A-Z]/g, '')) - 1; 
         const val = wsCity[key].v;
 
-        // 🌟 清除不必要的表頭右側框線 (H欄以後)
         if ((row === 0 || row === 1) && colIdx >= 7) {
            s.border = {};
         }
-        // 🌟 清除底部不必要的框線 (I欄以後)
         if (row >= footerStart && colIdx >= 8) {
            s.border = {};
         }
@@ -629,7 +720,6 @@ export const exportMonthlyReportToExcel = async (month) => {
         }
 
         if (row >= 5 && row <= listEndRow) {
-           // 🌟 精準使用門檻值邏輯：同分者皆可上色，符合你的「同分就算同排名沒關係」
            if (colIdx === 3 || colIdx === 8 || colIdx === 13) {
              const countVal = parseInt(val);
              if (!isNaN(countVal) && countVal > 0 && countVal >= top5Threshold) {
@@ -645,7 +735,6 @@ export const exportMonthlyReportToExcel = async (month) => {
            }
         }
 
-        // 確保底部只有 A~H 欄位(colIdx 0~7) 有底色和粗體樣式
         if (row >= footerStart && colIdx < 8) {
           s.font.sz = 16;
           s.font.bold = true;

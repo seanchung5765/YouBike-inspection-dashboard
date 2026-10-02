@@ -19,7 +19,7 @@
         <span>施測總站數：<strong>{{ summary.totalStations }}</strong> 站</span>
         <span>2.0 施測數量：<strong>{{ summary.totalBikes - summary.ebikesCount }}</strong> 輛</span>
         <span>2.0E 施測數量：<strong>{{ summary.ebikesCount }}</strong> 輛</span>
-        <span class="legend">備註：異常件數 &ge; 5 項底色提醒，異常率 &gt; 20% 紅字</span>
+        <span class="legend">備註：異常件數 &ge; 5 、異常率 &gt; 20% 皆紅字提醒</span>
       </div>
 
       <el-row :gutter="20" class="table-row">

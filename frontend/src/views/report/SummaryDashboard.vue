@@ -590,7 +590,7 @@ const initDashboard = async () => {
       selectedMonth.value = monthOptions.value[0]
       fetchSummary()
     } else {
-      ElMessage.warning('目前尚無任何報表資訊')
+      //ElMessage.warning('目前尚無任何報表資訊')
     }
   } catch (error) { ElMessage.error('無法取得月份清單') }
 }

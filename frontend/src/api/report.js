@@ -43,3 +43,7 @@ export const updateMaintenanceDataAPI = (month, city, field, value) => {
   return request.put('/report/maintenance', { month, city, field, value })
 }
 
+// 取得實際縣市清單 (明細過濾用)
+export const getReportRegionsAPI = (user_id, role_level) => {
+  return request.get('/report/regions', { params: { user_id, role_level } })
+}

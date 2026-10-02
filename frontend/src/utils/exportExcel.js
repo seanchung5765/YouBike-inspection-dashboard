@@ -1,7 +1,8 @@
 import * as XLSX from 'xlsx'
 import { ElMessage, ElLoading } from 'element-plus'
 import { getStationsSummaryAPI, getFlatBikesAPI } from '../api/dataProcess'
-import { getScoringRulesAPI } from '../api/scoring' 
+import { getScoringRulesAPI } from '../api/scoring'
+import { getReportRegionsAPI } from '../api/report' // 🌟 引入取得實際縣市權限的 API
 
 const formatTimeByRole = (val) => {
   if (!val) return '';
@@ -21,7 +22,6 @@ const hardcodedStationKeys = [
   'station_clean_garbage', 'station_clean_leaves'
 ];
 
-// 🌟 新增 status 參數
 export const exportMonthDataToExcel = async (month, status) => {
   const loadingInstance = ElLoading.service({
     lock:       true,
@@ -30,27 +30,43 @@ export const exportMonthDataToExcel = async (month, status) => {
   })
 
   try {
-    const [stationRes, bikeRes, rulesRes] = await Promise.all([
+    const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
+    const isHighLevelAdmin = userInfo.role_level && parseInt(userInfo.role_level) >= 90;
+
+    // 🌟 一併撈取登入者的「實際授權縣市清單 (例如：台北市、新北市)」
+    const [stationRes, bikeRes, rulesRes, regionsRes] = await Promise.all([
       getStationsSummaryAPI(month),
       getFlatBikesAPI(month, '', 'ALL', 1, 999999), 
-      getScoringRulesAPI()
+      getScoringRulesAPI(),
+      getReportRegionsAPI(userInfo.id, userInfo.role_level) // 🌟 撈取實際縣市名稱
     ])
 
-    const rawTableData = stationRes.data.success ? stationRes.data.data : []
-    const rawBikeData  = bikeRes.data.success ? bikeRes.data.data : []
-    const rules        = rulesRes.data.success ? rulesRes.data.data : []
+    // 🌟 整理出該使用者可以看的實際縣市清單
+   
+    const allowedCities = regionsRes.data?.success ? regionsRes.data.data : [];
+
+    if (allowedCities.length === 0) {
+      ElMessage.error('您目前沒有任何縣市的閱覽權限，無法匯出明細。');
+      loadingInstance.close();
+      return false;
+    }
+    
+
+    let rawTableData = stationRes.data.success ? stationRes.data.data : []
+    let rawBikeData  = bikeRes.data.success ? bikeRes.data.data : []
+    const rules      = rulesRes.data.success ? rulesRes.data.data : []
+
+    // 🌟 嚴格過濾：利用實際縣市名稱，把沒有權限的資料濾掉
+    rawTableData = rawTableData.filter(item => allowedCities.includes(item.city));
+    rawBikeData = rawBikeData.filter(item => allowedCities.includes(item.city));
 
     if (rawTableData.length === 0 && rawBikeData.length === 0) {
-      ElMessage.warning(`[${month}] 目前沒有資料可以匯出喔！`)
+      ElMessage.warning(`[${month}] 您的權限範圍內，目前沒有資料可以匯出喔！`)
+      loadingInstance.close();
       return false
     }
 
     const V = (val) => (val == 1 || val === true || val === '1') ? 'V' : ''
-
-    const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
-    const isHighLevelAdmin = userInfo.role_level && parseInt(userInfo.role_level) >= 90;
-    
-    // 🌟 判斷這份報表是否已發布
     const isPublished = (status === 'published');
 
     // ==========================================
@@ -78,10 +94,7 @@ export const exportMonthDataToExcel = async (month, status) => {
         V(item.station_clean_leaves)  ? '[落葉雜草或軟爛果實]' : ''
       ].filter(Boolean).join(' ');
 
-      // 🌟 權限控管：只有發布後，才把備註加入 Excel 欄位
-      if (isPublished) {
-        rowObj['場站備註說明'] = item.station_note;
-      }
+      rowObj['場站備註說明'] = item.station_note || '';
 
       return rowObj;
     })
@@ -119,13 +132,12 @@ export const exportMonthDataToExcel = async (month, status) => {
       rowObj['前胎壓'] = item.front_tire_psi !== null && item.front_tire_psi !== undefined ? item.front_tire_psi : '';
       rowObj['後胎壓'] = item.rear_tire_psi !== null && item.rear_tire_psi !== undefined ? item.rear_tire_psi : '';
       
-      // 🌟 權限控管：只有發布後，才把這 4 個備註加入 Excel 欄位
-      if (isPublished) {
+      
         rowObj['其他備註']       = item.other_note || '';
         rowObj['車柱備註']       = item.dock_note || '';
         rowObj['外觀備註']       = item.appearance_note || '';
         rowObj['結構備註']       = item.structure_note || '';
-      }
+      
 
       rowObj['Id'] = item.id || '';
 
@@ -133,7 +145,7 @@ export const exportMonthDataToExcel = async (month, status) => {
     })
 
     // ==========================================
-    // 📦 SheetJS 匯出與雙層表頭處理 (此段維持不變)
+    // 📦 SheetJS 匯出與雙層表頭處理
     // ==========================================
     const wb = XLSX.utils.book_new()
     
