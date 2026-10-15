@@ -4,25 +4,35 @@
     <el-card style="margin-bottom: 20px;">
       <template #header>
         <div class="mobile-header">
-          <h2>🏆 總分表</h2>
+          <h2>總分表</h2>
           <div class="header-right-actions">
             <el-select v-model="selectedMonth" placeholder="選擇月份" @change="fetchSummary" style="width: 130px;">
               <el-option v-for="m in monthOptions" :key="m" :label="m" :value="m" />
             </el-select>
-            <el-button 
-              v-if="currentUser.role_level >= 90" 
-              type="primary" 
-              @click="handleRecalculate" 
-              :loading="calculating" 
-              :disabled="!selectedMonth || monthStatus === 'published'"
-            >
-              <el-icon><Refresh /></el-icon> 重新結算
-            </el-button>
+            
+            <!-- 🌟 用一個 div 把按鈕跟問號包起來，並設定 v-if 權限 -->
+            <div v-if="currentUser.role_level >= 90" style="display: flex; align-items: center; gap: 6px;">
+              <el-button 
+                id="tour-recalc-btn"
+                type="primary" 
+                @click="handleRecalculate" 
+                :loading="calculating" 
+                :disabled="!selectedMonth || monthStatus === 'published'"
+              >
+                <el-icon><Refresh /></el-icon> 重新結算
+              </el-button>
+              
+              <!-- 🌟 新增的問號與提示文字 -->
+              <el-tooltip effect="dark" content="資料重新上傳未發布前可經由重新結算預覽評分" placement="top">
+                <el-icon style="font-size: 18px; color: #909399; cursor: help;"><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </div>
           </div>
         </div>
       </template>
 
-      <el-table :data="processedTableData" v-loading="loading" border stripe style="width: 100%" :span-method="objectSpanMethod" :cell-style="getCellStyle">
+      <!-- 🌟 加上 id="tour-main-table" -->
+      <el-table id="tour-main-table" :data="processedTableData" v-loading="loading" border stripe style="width: 100%" :span-method="objectSpanMethod" :cell-style="getCellStyle">
         <el-table-column prop="city" label="地區" min-width="120" fixed="left" align="center">
           <template #default="scope">
             <span style="font-weight: bold; font-size: 1.1em;">{{ scope.row.city }}</span>
@@ -31,7 +41,6 @@
 
         <el-table-column label="整體" align="center">
           <el-table-column prop="pure_station" min-width="170" align="center">
-            <!-- 🌟 自訂表頭與高階管理員 Tooltip -->
             <template #header>
               場站妥善度
               <el-tooltip v-if="currentUser.role_level >= 90" effect="dark" placement="top">
@@ -160,7 +169,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="ops_final_score" label="主管測評" min-width="110" align="center" fixed="right">
+        <el-table-column prop="ops_final_score" label="營運測評" min-width="110" align="center" fixed="right">
           <template #default="scope">
             <span style="font-size: 1.2em; font-weight: bold; color: #909399;">
               {{ scope.row.ops_final_score ? formatTwoDecimals(scope.row.ops_final_score) : '-' }}
@@ -174,7 +183,7 @@
     <el-card style="margin-bottom: 20px;">
       <template #header>
         <div class="mobile-header">
-          <h2>📊 基礎施測數據與胎壓檢測</h2>
+          <h2>基礎施測數據與胎壓檢測</h2>
         </div>
       </template>
 
@@ -206,7 +215,7 @@
     <el-card style="margin-bottom: 20px;">
       <template #header>
         <div class="mobile-header">
-          <h2>📊 可動率</h2>
+          <h2>可動率</h2>
         </div>
       </template>
       
@@ -240,15 +249,13 @@
     <el-card>
       <template #header>
         <div class="mobile-header">
-          <h2>🛠️ 一級維護
+          <h2>一級維護
             <span v-if="currentUser.role_level >= 90" style="font-size: 14px; color: #909399; margin-left: 10px; font-weight: normal;">
               (高階管理員專用 {{ monthStatus === 'published' ? '唯讀模式' : '編輯區' }})
             </span>
           </h2>
         </div>
-        
       </template>
-      
       
       <el-table :data="normalTableData" v-loading="loading" border stripe style="width: 100%" :show-summary="true" :summary-method="getMaintenanceSummary">
         <el-table-column prop="city" label="評估區域" min-width="100" fixed="left" align="center">
@@ -315,11 +322,9 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Refresh, QuestionFilled } from '@element-plus/icons-vue' // 🌟 引入問號 icon
+import { Refresh, QuestionFilled } from '@element-plus/icons-vue' 
 import { getReportSummaryAPI, recalculateReportAPI, getReportMonthsAPI, updateMaintenanceDataAPI } from '../../api/report' 
 
-// 🌟 高階管理員專用：公式對照表字典 (可利用 \n 進行換行排版)
-// 請將以下內容替換為你們系統真實的計算公式
 const formulas = {
   pure_station: '【場站妥善度】計算公式：\n100 - ((該縣市場站總扣分 × 所有類別扣分權重加總) ÷ (抽驗車輛數 × 該縣市場站總扣分))',
   pure_appearance: '【外觀與重要標示】計算公式：\n100 - ((該縣市外觀與重要標示總扣分 × 所有類別扣分權重加總) ÷ (抽驗車輛數 × 該縣市外觀與重要標示總扣分))',
@@ -589,8 +594,6 @@ const initDashboard = async () => {
       monthOptions.value = res.data.data
       selectedMonth.value = monthOptions.value[0]
       fetchSummary()
-    } else {
-      //ElMessage.warning('目前尚無任何報表資訊')
     }
   } catch (error) { ElMessage.error('無法取得月份清單') }
 }

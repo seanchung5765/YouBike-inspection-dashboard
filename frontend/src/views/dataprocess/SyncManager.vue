@@ -1,17 +1,18 @@
 <template>
-  <div class="import-container">
+  <div id="tour-sync-container" class="import-container relative-container">
     <h2>每月資料</h2>
     
-    <!-- 🌟 將綁定的 data 改為 displayTableData -->
+    <!-- 🌟 神奇的透明圖層：用來覆蓋整個右側的操作欄位 -->
+    <div id="tour-sync-actions-area" class="actions-overlay-box"></div>
+    
     <el-table :data="displayTableData" style="width: 100%" v-loading="loading">
       
-      <el-table-column label="項目 (月份)" prop="report_month" width="220">
+      <el-table-column label="月份" prop="report_month" width="220">
         <template #default="scope">
           <div style="display: flex; flex-direction: column; gap: 5px;">
             <div>
               <span style="font-weight: bold; font-size: 1.1em;">{{ scope.row.report_month }}</span>
               
-              <!-- 🌟 一般使用者不需要看狀態標籤（因為他們看到的都是已發布），所以加上 v-if="isAdmin" -->
               <template v-if="isAdmin">
                 <span v-if="scope.row.status === 'draft'" style="color: #F56C6C; margin-left: 10px; font-size: 0.9em;">(編修中)</span>
                 <span v-if="scope.row.status === 'published'" style="color: #67C23A; margin-left: 10px; font-size: 0.9em;">(已發布)</span>
@@ -29,7 +30,6 @@
         </template>
       </el-table-column>
 
-      <!-- 🌟 新增 v-if="isAdmin"：只有管理員看得到最後載入時間 -->
       <el-table-column v-if="isAdmin" label="最後載入時間" width="180">
         <template #default="scope">
           <span style="color: #909399; font-size: 0.9em;">
@@ -38,22 +38,29 @@
         </template>
       </el-table-column>
       
-      <el-table-column label="操作項目" align="right" min-width="450">
+      <!-- 🌟 操作項目表頭加上問號提示 -->
+      <el-table-column align="right" min-width="450">
+        <template #header>
+          <div style="display: inline-flex; align-items: center; justify-content: flex-end; width: 100%;">
+            操作項目
+            <el-tooltip effect="dark" placement="top">
+              <template #content>
+                <div style="line-height: 1.5;">
+                  下載報表：每月報表下載<br />
+                  匯出明細：系統中樣本資料下載<br />
+                  <template v-if="isAdmin">
+                    匯入明細：更新系統中樣本<br />
+                    <span style="color: #F56C6C;">注意：上傳後樣本資料被覆蓋不可復原，請注意存儲</span><br />
+                    鎖定發布：經發布後資料則對外公示不可修改
+                  </template>
+                </div>
+              </template>
+              <el-icon style="margin-left: 4px; cursor: help; vertical-align: middle;"><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </div>
+        </template>
         <template #default="scope">
           <div style="display: flex; justify-content: flex-end; gap: 10px;">
-            
-            <!-- 1. 從模擬體驗載入資料 (僅管理員) -->
-            <!--<el-button 
-              v-if="isAdmin"
-              type="success" link
-              :disabled="scope.row.status === 'published' || syncTarget !== null"
-              @click="handleSync(scope.row)"
-            >
-              <el-icon v-if="syncTarget === scope.row.report_month" class="is-loading" style="margin-right: 5px;"><Refresh /></el-icon>
-              {{ syncTarget === scope.row.report_month ? '資料載入中...' : '從模擬體驗載入資料' }}
-            </el-button>-->
-
-            <!-- 2. 下載報表 (中階主管以上，且須發布或為管理員) -->
             <el-button 
               v-if="isMiddleManager && (scope.row.status === 'published' || isAdmin)"
               type="warning" link 
@@ -63,12 +70,10 @@
               <el-icon><Document style="margin-right: 5px;"/></el-icon> 下載報表
             </el-button>
 
-            <!-- 3. 匯出 Excel (大家都能看) -->
             <el-button type="info" link @click="handleExport(scope.row.report_month, scope.row.status)" :disabled="syncTarget !== null">
               <el-icon><Download style="margin-right: 5px;"/></el-icon> 匯出明細
             </el-button>
 
-            <!-- 4. 匯入 Excel (僅管理員) -->
             <el-upload
               v-if="isAdmin"
               action=""
@@ -82,7 +87,6 @@
               </el-button>
             </el-upload>
             
-            <!-- 5. 鎖定發布 (僅管理員) -->
             <el-button 
               v-if="isAdmin && scope.row.status === 'draft'"
               type="primary" link
@@ -99,10 +103,9 @@
 </template>
 
 <script setup>
-// 🌟 記得引入 computed
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download, Upload, Refresh, Document } from '@element-plus/icons-vue'
+import { Download, Upload, Refresh, Document, QuestionFilled } from '@element-plus/icons-vue' // 🌟 記得引入 QuestionFilled
 
 import { exportMonthDataToExcel } from '../../utils/exportExcel'
 import { parseBikeExcel } from '../../utils/importExcel' 
@@ -110,6 +113,7 @@ import { batchUpdateBikesAPI } from '../../api/dataProcess'
 import { getMonthlyReportsAPI, syncMonthlyDataAPI, publishMonthlyReportAPI } from '../../api/sync' 
 import { getScoringRulesAPI } from '../../api/scoring'
 import { exportMonthlyReportToExcel } from '../../utils/exportReport'
+import { startTour } from '../../utils/tour'
 
 const tableData = ref([])
 const loading = ref(false)
@@ -117,12 +121,10 @@ const loading = ref(false)
 const syncTarget = ref(null)
 const syncProgress = ref(0)
 
-// 🌟 1. 取得當前使用者權限
 const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 const isAdmin = computed(() => currentUser.role_level >= 90);
 const isMiddleManager = computed(() => currentUser.role_level >= 50);
 
-// 🌟 2. 依照權限過濾表格資料
 const displayTableData = computed(() => {
   return tableData.value; 
 });
@@ -137,7 +139,6 @@ const fetchList = async () => {
   finally { loading.value = false }
 }
 
-// 🌟 3. 新增處理下載報表的點擊事件
 const handleDownloadReport = (month) => {
   exportMonthlyReportToExcel(month);
 };
@@ -155,51 +156,6 @@ const formatDateTime = (dateStr) => {
 
 const handleExport = (month, status) => {
   exportMonthDataToExcel(month, status);
-}
-
-const handleSync = async (row) => {
-  const month = row.report_month
-  if (row.status === 'draft') {
-    try {
-      await ElMessageBox.confirm(
-        `${month} 已經有資料存在，重新載入將會「完全覆蓋」您現有的修改內容，確定要繼續嗎？`,
-        '覆蓋警告',
-        { confirmButtonText: '確定覆蓋', cancelButtonText: '取消', type: 'warning' }
-      )
-    } catch {
-      return 
-    }
-  }
-
-  syncTarget.value = month;
-  syncProgress.value = 0;
-  
-  const timer = setInterval(() => {
-    if (syncProgress.value < 90) {
-      syncProgress.value += Math.floor(Math.random() * 15) + 5;
-      if (syncProgress.value > 90) syncProgress.value = 90;
-    }
-  }, 400);
-
-  try {
-    const operatorId = currentUser.username || 'System'
-    
-    await syncMonthlyDataAPI({ month, operator_id: operatorId })
-    
-    clearInterval(timer);
-    syncProgress.value = 100;
-
-    setTimeout(() => {
-      ElMessage.success(`${month} 資料載入成功！`)
-      syncTarget.value = null; 
-      fetchList() 
-    }, 600);
-
-  } catch (error) {
-    clearInterval(timer);
-    syncTarget.value = null;
-    ElMessage.error('資料載入失敗！');
-  } 
 }
 
 const handlePublish = async (month) => {
@@ -266,11 +222,52 @@ const handleImportExcel = async (file, row) => {
   }
 }
 
-onMounted(fetchList)
+onMounted(() => {
+  fetchList();
+
+  let actionDescription = '下載報表：每月報表下載\n匯出明細：系統中樣本資料下載';
+
+  if (currentUser.role_level >= 90) {
+    actionDescription += '\n匯入明細：更新系統中樣本 (上傳後被覆蓋不可復原)\n鎖定發布：經發布後資料對外公示不可修改';
+  }
+
+  startTour(`tour_sync_${currentUser.id}`, [
+    { 
+      element: '#tour-sync-container', 
+      popover: { 
+        title: '1. 樣本資料', 
+        description: '每月樣本資料下載 / 處理後資料上傳 / 報表下載' 
+      } 
+    },
+    { 
+      element: '#tour-sync-actions-area', 
+      popover: { 
+        title: '?. 操作說明', 
+        description: actionDescription, 
+        side: 'left',
+        align: 'start'
+      } 
+    }
+  ]);
+})
 </script>
 
 <style scoped>
 .import-container { padding: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); }
 h2 { margin-top: 0; margin-bottom: 20px; color: #303133; }
 :deep(.el-progress-bar__inner) { transition: width 0.3s ease; }
+
+.relative-container {
+  position: relative;
+}
+
+.actions-overlay-box {
+  position: absolute;
+  top: 60px;       
+  right: 20px;     
+  width: 480px;    
+  bottom: 20px;    
+  pointer-events: none; 
+  z-index: 1;      
+}
 </style>

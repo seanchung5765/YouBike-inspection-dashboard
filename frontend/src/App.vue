@@ -1,4 +1,3 @@
-<!-- src/App.vue -->
 <template>
   <router-view />
 </template>
@@ -13,7 +12,7 @@ const router = useRouter()
 // ==========================================
 // 🛡️ 系統閒置自動登出機制
 // ==========================================
-const IDLE_TIMEOUT_MINUTES = 30; // 👈 設定閒置幾分鐘後自動登出 (目前設 30 分鐘)
+const IDLE_TIMEOUT_MINUTES = 120; // 👈 設定閒置幾分鐘後自動登出 (目前設 30 分鐘)
 let timeoutId = null;
 
 const handleLogout = () => {
@@ -59,5 +58,27 @@ body {
   padding: 0;
   font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB',
   'Microsoft YaHei', '微軟正黑', Arial, sans-serif;
+}
+
+/* 🌟 Driver.js 白字黑底專屬樣式 (不可加 scoped) */
+.white-text-popover {
+  background-color: rgba(30, 30, 30, 0.95) !important;
+  border-radius: 8px !important;
+  pointer-events: none !important; /* 確保點擊可以穿透到背景 */
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+}
+.white-text-popover .driver-popover-title {
+  color: #ffffff !important;
+  font-size: 18px !important;
+  font-weight: bold !important;
+}
+.white-text-popover .driver-popover-description {
+  color: #e0e0e0 !important;
+  white-space: pre-line !important; /* 🌟 支援 \n 換行排版 */
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+}
+.white-text-popover .driver-popover-arrow {
+  border-color: rgba(30, 30, 30, 0.95) transparent transparent transparent !important;
 }
 </style>

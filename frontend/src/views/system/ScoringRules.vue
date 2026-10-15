@@ -1,5 +1,6 @@
 <template>
-  <div class="scoring-container">
+  <!-- 🌟 加上 id="tour-scoring-container" 讓導覽框住整個畫面 -->
+  <div id="tour-scoring-container" class="scoring-container">
     <div class="header">
       <h2>📊 計分規則設定</h2>
       <div class="actions">
@@ -8,10 +9,7 @@
         </el-button>
       </div>
     </div>
-
-
     
-    <!-- 🌟 加入 loading 與 cell-class-name 精準單格高亮 -->
     <el-table 
       :data="tableData" 
       :cell-class-name="tableCellClassName"
@@ -24,7 +22,6 @@
     >
       <el-table-column label="資料庫欄位" prop="item_key" min-width="150" fixed="left" show-overflow-tooltip />
 
-      <!-- 🌟 每一個 column 都有專屬的 prop，才能讓系統知道哪一格被改了 -->
       <el-table-column label="車種" prop="bike_type" min-width="110" header-align="center">
         <template #default="scope">
           <el-select v-model="scope.row.bike_type" size="small">
@@ -57,7 +54,19 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="合併扣分" prop="merge_group" min-width="180">
+      <!-- 🌟 合併扣分：加入問號與 Tooltip 提示 -->
+      <el-table-column prop="merge_group" min-width="180" label-class-name="tour-merge-group-header">
+        <template #header>
+          合併扣分
+          <el-tooltip effect="dark" placement="top">
+            <template #content>
+              <div style="line-height: 1.5;">
+                以相同文字作為合併扣分依據
+              </div>
+            </template>
+            <el-icon style="margin-left: 4px; cursor: help; vertical-align: middle;"><QuestionFilled /></el-icon>
+          </el-tooltip>
+        </template>
         <template #default="scope">
           <el-select
             v-model="scope.row.merge_group"
@@ -96,7 +105,6 @@
 
       <el-table-column label="扣分" prop="deduction_points" width="120" fixed="right">
         <template #default="scope">
-          <!-- 🌟 乾淨的輸入框，沒有任何 @change 事件干擾 -->
           <el-input-number 
             v-model="scope.row.deduction_points" 
             :min="-100" :max="0" :step="1" size="small" style="width: 100%" 
@@ -110,11 +118,12 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Check } from '@element-plus/icons-vue'
+import { Check, QuestionFilled } from '@element-plus/icons-vue' // 🌟 記得引入 QuestionFilled
 import { getScoringRulesAPI, batchUpdateRulesAPI } from '../../api/scoring'
+import { startTour } from '../../utils/tour' 
 
 const tableData = ref([])
-const originalData = ref([]) // 用來備份比對
+const originalData = ref([]) 
 const loading = ref(false)
 const saving = ref(false)
 
@@ -143,7 +152,6 @@ const stringToColor = (str) => {
   return color;
 };
 
-// 🌟 精準判斷「單一格子」是否被修改
 const tableCellClassName = ({ row, column }) => {
   if (!originalData.value.length || !column.property) return '';
   const orig = originalData.value.find(o => o.id === row.id);
@@ -170,7 +178,6 @@ const fetchData = async () => {
   try {
     const res = await getScoringRulesAPI()
     if (res.data.success) {
-      // 標準化資料，把所有 null 或 undefined 清洗乾淨，避免誤判高亮
       const normalizedData = res.data.data.map(item => ({
         ...item,
         bike_type: item.bike_type || 'ALL',
@@ -183,7 +190,6 @@ const fetchData = async () => {
       }));
       
       tableData.value = normalizedData;
-      // 深度拷貝當作備份對照組
       originalData.value = JSON.parse(JSON.stringify(normalizedData));
     }
   } catch (error) { 
@@ -196,15 +202,10 @@ const fetchData = async () => {
 const handleSave = async () => {
   saving.value = true
   try {
-    // =======================================================
-    // 🌟 移除：自動對齊同群組分數的邏輯 (因為現在允許不同分數，由後端結算時取最大扣分)
-    // =======================================================
-    
-    // 直接呼叫 API 送出目前的表格資料
     const res = await batchUpdateRulesAPI({ rules: tableData.value })
     if (res.data.success) {
       ElMessage.success('所有規則已成功儲存！')
-      fetchData() // 重新抓取資料，更新備份，讓高亮橘色提示消失
+      fetchData() 
     }
   } catch (error) { 
     ElMessage.error('儲存失敗') 
@@ -213,7 +214,27 @@ const handleSave = async () => {
   }
 }
 
-onMounted(fetchData)
+onMounted(() => {
+  fetchData();
+
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  startTour(`tour_scoring_${user.id}`, [
+    { 
+      element: '#tour-scoring-container', 
+      popover: { 
+        title: '1. 評分項目管理', 
+        description: '評分項目分類、等級及扣分設置' 
+      } 
+    },
+    { 
+      element: '.tour-merge-group-header', 
+      popover: { 
+        title: '2. 合併扣分', 
+        description: '以相同文字作為合併扣分依據' 
+      } 
+    }
+  ]);
+})
 </script>
 
 <style scoped>
@@ -222,7 +243,6 @@ onMounted(fetchData)
 .actions { display: flex; gap: 15px; align-items: center; }
 h2 { margin: 0; color: #303133; font-size: 20px; }
 
-/* 🌟 解除字體大小鎖定 */
 :deep(.el-table th.el-table__cell),
 :deep(.el-table .cell),
 :deep(.el-input__inner),
@@ -232,7 +252,6 @@ h2 { margin: 0; color: #303133; font-size: 20px; }
   font-size: 1em !important;
 }
 
-/* 🌟 解除高度限制，讓格子可以被撐開 */
 :deep(.el-input--small .el-input__wrapper),
 :deep(.el-input-number--small) {
   height: auto !important;
@@ -241,19 +260,17 @@ h2 { margin: 0; color: #303133; font-size: 20px; }
   padding-bottom: 4px;
 }
 
-/* 🌟 數字按鈕鎖死：強制給定 px 大小，拒絕跟隨 em 放大而蓋住文字 */
 :deep(.el-input-number--small .el-input-number__decrease),
 :deep(.el-input-number--small .el-input-number__increase) {
   font-size: 13px !important;
   width: 32px !important;
 }
-/* 🌟 把中間輸入框的 Padding 留給固定的按鈕，確保文字不會被遮住 */
+
 :deep(.el-input-number--small .el-input__wrapper) {
   padding-left: 36px !important;
   padding-right: 36px !important;
 }
 
-/* 群組顏色圓點樣式 */
 .color-dot {
   width: 12px;
   height: 12px;
@@ -267,7 +284,6 @@ h2 { margin: 0; color: #303133; font-size: 20px; }
   padding-left: 5px;
 }
 
-/* 🌟 單獨修改的格子會變成淺橘色 */
 :deep(.el-table .modified-cell) {
   background-color: #fdf6ec !important; 
   transition: background-color 0.3s;
@@ -276,7 +292,6 @@ h2 { margin: 0; color: #303133; font-size: 20px; }
   background-color: #fdf6ec !important; 
 }
 
-/* 手機版排版 */
 @media (max-width: 768px) {
   .scoring-container { padding: 10px; }
   .header { flex-direction: column; align-items: flex-start; gap: 15px; }
@@ -292,7 +307,6 @@ h2 { margin: 0; color: #303133; font-size: 20px; }
 </style>
 
 <style>
-/* 下拉選單展開放大 (必須放在全域不加 scoped) */
 .el-select-dropdown__item {
   font-size: 1em !important;
 }

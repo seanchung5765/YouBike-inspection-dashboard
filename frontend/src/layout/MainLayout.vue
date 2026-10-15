@@ -13,7 +13,7 @@
       </div>
 
       <!-- 中間：電腦版水平下拉選單 (🌟 改為白底亮色系) -->
-      <div class="header-menu hidden-xs-only">
+      <div id="tour-nav-menu" class="header-menu hidden-xs-only">
         <el-menu 
           :default-active="$route.name" 
           class="horizontal-menu" 
@@ -24,7 +24,7 @@
           :ellipsis="true"
         >
           <el-menu-item index="Dashboard" @click="router.push({ name: 'Dashboard' })">
-            <el-icon><DataLine /></el-icon><span>系統首頁</span>
+            <el-icon><DataLine /></el-icon><span>維護量表</span>
           </el-menu-item>
           
           <template v-for="menu in menuList" :key="menu.id">
@@ -46,7 +46,7 @@
       <!-- 右側：字體放大器與登出資訊 -->
       <div class="header-right">
         <!-- 電腦版字體縮放拉桿 -->
-        <div class="font-zoom-ctrl hidden-xs-only">
+        <div id="tour-font-size" class="font-zoom-ctrl hidden-xs-only">
           <span class="zoom-label">字體 {{ Math.round(fontZoom * 100) }}%</span>
           <el-slider v-model="fontZoom" :min="0.8" :max="1.5" :step="0.1" @input="handleFontZoomChange" :show-tooltip="false" class="zoom-slider" />
         </div>
@@ -69,7 +69,7 @@
         <div style="flex: 1; overflow-y: auto;">
           <el-menu active-text-color="#409EFF" background-color="#ffffff" text-color="#606266" :default-active="$route.name" style="border-right: none;">
             <el-menu-item index="Dashboard" @click="router.push({ name: 'Dashboard' }); drawerVisible = false;">
-              <el-icon><DataLine /></el-icon><span>系統首頁</span>
+              <el-icon><DataLine /></el-icon><span>維護量表</span>
             </el-menu-item>
             <template v-for="menu in menuList" :key="menu.id">
               <el-sub-menu v-if="menu.children && menu.children.length > 0" :index="String(menu.id)">
@@ -122,14 +122,15 @@ const drawerVisible = ref(false)
 const fontZoom = ref(1)
 
 const applyFontZoom = (scale) => {
-  const root = document.documentElement
-  root.style.setProperty('--el-font-size-extra-small', `${12 * scale}px`)
-  root.style.setProperty('--el-font-size-small', `${13 * scale}px`)
-  root.style.setProperty('--el-font-size-base', `${14 * scale}px`) 
-  root.style.setProperty('--el-font-size-medium', `${16 * scale}px`)
-  root.style.setProperty('--el-font-size-large', `${18 * scale}px`)
-  root.style.setProperty('--el-font-size-extra-large', `${20* scale}px`)
-  document.body.style.fontSize = `${14 * scale}px`
+  const root = document.documentElement;
+  // 🌟 請修正為這段，把變數與計算式的符號補齊
+  root.style.setProperty('--el-font-size-extra-small', `${12 * scale}px`);
+  root.style.setProperty('--el-font-size-small', `${13 * scale}px`);
+  root.style.setProperty('--el-font-size-base', `${14 * scale}px`); 
+  root.style.setProperty('--el-font-size-medium', `${16 * scale}px`);
+  root.style.setProperty('--el-font-size-large', `${18 * scale}px`);
+  root.style.setProperty('--el-font-size-extra-large', `${20 * scale}px`);
+  document.body.style.fontSize = `${14 * scale}px`;
 }
 
 const handleFontZoomChange = (val) => {

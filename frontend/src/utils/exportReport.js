@@ -162,7 +162,7 @@ export const exportMonthlyReportToExcel = async (month) => {
       ['', ...allCityHeaders.map(c => getVal(currSummary, c, 'group_final_score')), ''], 
       [`${m1}`, ...allCityHeaders.map(c => getVal(prevSummary, c, 'final_score')), getVal(prevSummary, '總計', 'final_score')],
       ['', ...allCityHeaders.map(c => getVal(prevSummary, c, 'group_final_score')), ''], 
-      ['主管測評', ...allCityHeaders.map(c => getVal(currSummary, c, 'ops_final_score')), '-']
+      ['營運測評', ...allCityHeaders.map(c => getVal(currSummary, c, 'ops_final_score')), '-']
     ];
     
     const targetColIdx = allCityHeaders.length + 3; 
@@ -755,7 +755,7 @@ export const exportMonthlyReportToExcel = async (month) => {
     });
 
     XLSX.writeFile(wb, `YouBike綜合月報_${month}.xlsx`);
-    ElMessage.success(`🎉 ${month} 報表下載成功！`);
+    ElMessage.success(` ${month} 報表下載成功！`);
 
   } catch (error) {
     console.error('匯出報表發生錯誤:', error);

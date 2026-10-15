@@ -1,6 +1,6 @@
-<!--frontend/src/views/dataprocess/DataEditList.vue-->
 <template>
-  <div class="data-edit-container">
+  <!-- 🌟 加上 id="tour-data-edit-container" 讓導覽框住整個畫面 -->
+  <div id="tour-data-edit-container" class="data-edit-container">
     <el-card>
       <template #header>
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -107,7 +107,6 @@
               <template #default="scope"><b>{{ scope.row.bike_no || '無' }}</b></template>
             </el-table-column>
             
-            <!-- 🌟 將 width 改為 min-width="120"，讓很長的表頭（如：外觀及環境_兩側貼紙）能完整顯示 -->
             <el-table-column 
               v-for="col in allBikeParts" 
               :key="col.prop" 
@@ -137,7 +136,6 @@
               </template>
             </el-table-column>
 
-            <!-- 🌟 備註類因為內容長短不一，一律改用 min-width 讓它彈性伸縮 -->
             <el-table-column label="車柱備註" min-width="160">
               <template #default="scope"><input type="text" class="fast-input" v-model.lazy="scope.row.dock_note" @blur="autoSaveBike(scope.row, 'dock_note', scope.row.dock_note)" /></template>
             </el-table-column>
@@ -179,6 +177,7 @@ import {
   batchDeleteStationsAPI, batchDeleteBikesAPI
 } from '../../api/dataProcess'
 import { getScoringRulesAPI } from '../../api/scoring'
+import { startTour } from '../../utils/tour' // 🌟 引入導覽工具
 
 const loading = ref(false)
 const monthOptions = ref([])
@@ -210,7 +209,7 @@ const selectedCount = computed(() => activeTab.value === 'station' ? selectedSta
 const handleStationSelection = (val) => { selectedStations.value = val }
 const handleBikeSelection = (val) => { selectedBikes.value = val }
 
-// 🌟 動態欄位宣告
+// 動態欄位宣告
 const allBikeParts = ref([]) 
 
 const fetchFilters = async () => {
@@ -229,8 +228,6 @@ const fetchScoringRules = async () => {
   try {
     const res = await getScoringRulesAPI()
     if (res.data.success) {
-      // 🌟 修正點 1：過濾條件改成 large_category !== '場站'，確保跟 Excel 一樣有撈到「車柱」
-      // 🌟 修正點 2：補上 .sort()，依照你資料庫建好的 sort_order 排序
       const bikeRules = res.data.data
         .filter(rule => rule.large_category !== '場站')
         .sort((a, b) => (a.sort_order - b.sort_order) || (a.id - b.id))
@@ -336,6 +333,20 @@ const executeBatchDelete = () => {
 onMounted(() => {
   fetchFilters()
   fetchScoringRules() 
+
+  // 🌟 啟動導覽
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  if (user.role_level >= 50) { 
+    startTour(`tour_data_edit_${user.id}`, [
+      { 
+        element: '#tour-data-edit-container', 
+        popover: { 
+          title: '1. 樣本資料校正', 
+          description: '微幅校正樣本資料' 
+        } 
+      }
+    ]);
+  }
 })
 </script>
 
@@ -346,7 +357,6 @@ onMounted(() => {
 .filter-item { display: flex; align-items: center; gap: 10px; }
 .filter-label { font-weight: bold; font-size: 16px; }
 :deep(.el-tabs__content) { padding: 15px 0 0 0; }
-
 
 .fast-checkbox {
   width: 18px;

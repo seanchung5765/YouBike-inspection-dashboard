@@ -1,9 +1,10 @@
+D:\維護中資料(待上傳git)\YouBike-inspection-dashboard\frontend\src\views\report\DefectGallery.vue
 <template>
   <div class="gallery-container">
     <el-card>
       <template #header>
         <div class="mobile-header">
-          <h2>📸 缺失明細與照片檢視</h2>
+          <h2>缺失明細與照片檢視</h2>
           <div class="header-right-actions">
             <el-select v-model="selectedMonth" placeholder="選擇月份" @change="fetchData" style="width: 120px;">
               <el-option v-for="m in monthOptions" :key="m" :label="m" :value="m" />

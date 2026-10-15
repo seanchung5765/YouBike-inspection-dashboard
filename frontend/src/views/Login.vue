@@ -5,8 +5,8 @@
       <!-- 🌟 頂部 Logo 與標題 (改為置中排版與插畫) -->
       <div class="card-header">
         <img src="/bike.png" alt="Logo" class="login-logo" />
-        <h1 class="card-title">系統登入</h1>
-        <p class="card-subtitle">請使用公司帳號登入</p>
+        <h1 class="card-title">YouBike模擬體驗資訊系統</h1>
+        <p class="card-subtitle">請使用公夾帳號登入</p>
       </div>
 
       <!-- 表單區域 -->
@@ -17,18 +17,24 @@
         label-position="top"
         class="login-form"
       >
+        <!-- 🌟 修改 1：加上 name="username" 與 autocomplete="username" -->
         <el-form-item label="帳號" prop="username">
           <el-input 
             v-model="loginForm.username" 
+            name="username"
+            autocomplete="username"
             placeholder="" 
             class="custom-input"
           />
         </el-form-item>
 
+        <!-- 🌟 修改 2：加上 name="password" 與 autocomplete="current-password" -->
         <el-form-item label="密碼" prop="password">
           <el-input 
             v-model="loginForm.password" 
             type="password" 
+            name="password"
+            autocomplete="current-password"
             placeholder="" 
             show-password
             class="custom-input"
@@ -56,7 +62,7 @@
 
       <!-- 🌟 新增：底部版權宣告 -->
       <div class="card-footer">
-        © 2026 YouBike Co., Ltd
+        v1.0.0
       </div>
 
     </div>
@@ -65,30 +71,27 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { loginAPI } from '../api/auth'
 
 const router = useRouter()
+const route = useRoute()
 const loginFormRef = ref(null)
 const loading = ref(false)
 
-// 🌟 新增：記住我 的狀態
 const rememberMe = ref(true)
 
-// 1. 表單資料
 const loginForm = reactive({
   username: '',
   password: ''
 })
 
-// 2. 表單驗證規則
 const rules = {
   username: [{ required: true, message: '請輸入工號', trigger: 'blur' }],
   password: [{ required: true, message: '請輸入密碼', trigger: 'blur' }]
 }
 
-// 讀取「記住我」的帳號
 onMounted(() => {
   const savedUsername = localStorage.getItem('remembered_username')
   if (savedUsername) {
@@ -97,12 +100,10 @@ onMounted(() => {
   }
 })
 
-// 忘記密碼的提示邏輯
 const handleForgotPassword = () => {
   ElMessage.info('請聯繫系統管理員 (MIS 部門) 協助重置密碼。')
 }
 
-// 3. 登入邏輯
 const handleLogin = async () => {
   if (!loginFormRef.value) return 
   await loginFormRef.value.validate(async (valid) => {
@@ -117,32 +118,28 @@ const handleLogin = async () => {
         if (response.data.success) {
           const user = response.data.user;
           
-          // 🌟 前端防護網：如果該帳號沒有綁定任何「後台權限」或「角色」，拒絕登入
-          // (假設無角色的 back_role_id 是 null 或 3，你可以依照你的資料庫定義調整)
           if (!user || !user.back_role_id || !user.role_level) {
              ElMessage.error('您尚未開通後台系統權限，請聯絡系統管理員。');
-             // 強制登出 / 清除可能的殘留 Token
              localStorage.removeItem('token'); 
              return; 
           }
 
           ElMessage.success('登入成功！')
-          
-          // 將使用者資訊轉成字串存進瀏覽器
           localStorage.setItem('user', JSON.stringify(user))
           
-          // 處理「記住我」邏輯
           if (rememberMe.value) {
             localStorage.setItem('remembered_username', loginForm.username)
           } else {
             localStorage.removeItem('remembered_username')
           }
           
-          router.push('/dashboard')
+          // 這裡就是完美跳轉的關鍵
+          const targetPath = route.query.redirect || '/dashboard'
+          router.push(targetPath)
+          
         }
       } catch (error) {
         console.error('登入錯誤:', error)
-        // 🌟 接收後端傳來的「無權限」錯誤訊息
         const errMsg = error.response?.data?.message || '登入失敗，請檢查帳號密碼或網路連線'
         ElMessage.error(errMsg)
       } finally {
